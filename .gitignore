@@ -1,0 +1,10 @@
+data/PointGroupInst/
+data/scannet/__pycache__/
+data/scannet/scans
+checkpoints/
+data/glove.p
+data/*.txt
+data/*.json
+outputs/
+data/scannet/pointgroup_data
+PointGroupInst/
