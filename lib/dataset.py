@@ -318,7 +318,7 @@ class ScannetReferenceDataset(Dataset):
                 raw2label[raw_name] = scannet2label['others']
             else:
                 raw2label[raw_name] = scannet2label[nyu40_name]
-        print(len(raw2label))
+        print(raw2label)
         return raw2label
 
     def _get_unique_multiple_lookup(self):

@@ -9,7 +9,8 @@
             "name": "Python Debugger: Python File",
             "type": "debugpy",
             "request": "launch",
-            "program": "prepare_data.py"
+            "program": "prepare_data.py",
+            "args": ["--split", "val", "--pointgroupinst_path", "../../PointGroupInst/PointGroupInst"]
         }
     ]
 }

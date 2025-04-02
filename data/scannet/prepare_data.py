@@ -58,8 +58,23 @@ def export(mesh_file, agg_file, seg_file, meta_file, label_map_file, output_file
     if axis_align_matrix != None:
         axis_align_matrix = np.array(axis_align_matrix).reshape((4, 4))
         pts = np.ones((mesh_vertices.shape[0], 4))
-        pts[:, 0:3] = mesh_vertices[:, 0:3]
+        pts[:, 0:3] = mesh_vertices[:, 0:3] # XYZ only
+
+        # DEBUGGING
+        # import open3d as o3d
+        # pcd = o3d.geometry.PointCloud()
+        # pcd.points = o3d.utility.Vector3dVector(mesh_vertices[:, 0:3])
+        # DEBUGGING
+
         pts = np.dot(pts, axis_align_matrix.transpose())  # Nx4
+        
+        # DEBUGGING
+        # pcd1 = o3d.geometry.PointCloud()
+        # pcd1.points = o3d.utility.Vector3dVector(pts[:, :3])
+        # o3d.visualization.draw_geometries([pcd, pcd1])
+        # DEBUGGING
+
+
         aligned_vertices = np.copy(mesh_vertices)
         aligned_vertices[:, 0:3] = pts[:, 0:3]
     else:
@@ -68,9 +83,10 @@ def export(mesh_file, agg_file, seg_file, meta_file, label_map_file, output_file
 
     # Load semantic and instance labels
     if os.path.isfile(agg_file):
-        object_id_to_segs, label_to_segs = read_aggregation(agg_file)
-        seg_to_verts, num_verts = read_segmentation(seg_file)
+        object_id_to_segs, label_to_segs = read_aggregation(agg_file) # instance, indicated by id of object in scence and semantic, indicated by name of object
+        seg_to_verts, num_verts = read_segmentation(seg_file) # num_verts = len(data['segIndices']), seg_to_verts[INSTANCE_ID] = IDX
 
+        # SEMANTIC
         label_ids = np.zeros(shape=(num_verts), dtype=np.uint32)  # 0: unannotated
         object_id_to_label_id = {}
         for label, segs in label_to_segs.items():
@@ -163,9 +179,7 @@ def export(mesh_file, agg_file, seg_file, meta_file, label_map_file, output_file
 
 
 def export_one_scan(scan_name, output_filename_prefix):
-    print('CHECK', scan_name )
     mesh_file = os.path.join(SCANNET_DIR, scan_name, scan_name + '_vh_clean_2.ply')
-    print('MESH', mesh_file)
     # agg_file = os.path.join(SCANNET_DIR, scan_name, scan_name + '_vh_clean.aggregation.json')
     agg_file = os.path.join(SCANNET_DIR, scan_name, scan_name + '.aggregation.json') # NOTE must use the aggregation file for the low-res mesh
     seg_file = os.path.join(SCANNET_DIR, scan_name, scan_name + '_vh_clean_2.0.010000.segs.json')

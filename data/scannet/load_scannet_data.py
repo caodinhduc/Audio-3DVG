@@ -25,10 +25,10 @@ def read_aggregation(filename):
             segs = data['segGroups'][i]['segments']
             object_id_to_segs[object_id] = segs
             if label in label_to_segs:
-                label_to_segs[label].extend(segs)
+                label_to_segs[label].extend(segs) # merge to one list
             else:
                 label_to_segs[label] = segs
-    return object_id_to_segs, label_to_segs
+    return object_id_to_segs, label_to_segs # instance, indicated by id of object in scence and semantic, indicated by name of object
 
 
 def read_segmentation(filename):

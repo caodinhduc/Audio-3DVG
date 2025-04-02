@@ -12,8 +12,8 @@ class AttributeModule(nn.Module):
     def __init__(self, input_feature_dim, args, v_dim=128, h_dim=256, l_dim=256):
         super().__init__()
         self.args = args
-        self.input_feature_dim = input_feature_dim
-        self.voxel_size = np.array([args.voxel_size_ap]*3)
+        self.input_feature_dim = input_feature_dim # 7
+        self.voxel_size = np.array([args.voxel_size_ap]*3) # voxel: 0.02
 
         # Sparse Volumetric Backbone
         self.net = SparseConvEncoder(self.input_feature_dim)
