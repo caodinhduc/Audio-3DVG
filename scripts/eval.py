@@ -136,8 +136,8 @@ def eval_ref(args):
 
                 ref_acc += data["ref_acc"]
                 ious += data["ref_iou"]
-                masks += data["ref_multiple_mask"]
-                others += data["ref_others_mask"]
+                masks += data["ref_multiple_mask"] # filter multiple target cases
+                others += data["ref_others_mask"] # filter targe in others class
                 lang_acc.append(data["lang_acc"].item())
 
                 # store predictions

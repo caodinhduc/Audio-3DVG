@@ -99,6 +99,10 @@ class ScannetReferenceDataset(Dataset):
         semantic_labels = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id) + "_sem_label_pg.npy")
         instance_bboxes = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id) + "_aligned_bbox.npy")
 
+        # instance_labels: array([0, 1, 2, 3, 4, 5, 6, 7], dtype=uint32)
+        # semantic_labels: array([ 0,  4,  5,  8,  9, 14, 39], dtype=uint32)
+        # len(instance_bboxes) = num of instance labels
+
         if not self.use_color:
             point_cloud = mesh_vertices[:, 0:3]  # do not use color for now
             pcl_color = mesh_vertices[:, 3:6]
@@ -189,7 +193,7 @@ class ScannetReferenceDataset(Dataset):
 
             # construct the reference target label for each bbox
             ref_box_label = np.zeros(MAX_NUM_OBJ)
-            for i, gt_id in enumerate(instance_bboxes[:num_bbox, -1]):
+            for i, gt_id in enumerate(instance_bboxes[:num_bbox, -1]): # -1 mean id of object in scene, equal to objecid
                 if gt_id == object_id:
                     ref_box_label[i] = 1
                     ref_center_label = target_bboxes[i, 0:3]
@@ -211,8 +215,8 @@ class ScannetReferenceDataset(Dataset):
             # find all points belong to that instance
             ind = np.nonzero(instance_labels == i_instance)[0]
 
-            # find the semantic label
-            ins_class = semantic_labels[ind[0]]
+            # find the label
+            ins_class = semantic_labels[ind[0]] # take the first is ok
             if ins_class in DC.nyu40ids:
                 x = point_cloud[ind]
                 ins_class = DC.nyu40id2class[int(ins_class)]
@@ -223,10 +227,10 @@ class ScannetReferenceDataset(Dataset):
                 size = pc.max(0) - pc.min(0)
                 ins_obb = np.concatenate((center, size, np.array([0])))
                 ins_obbs.append(ins_obb)
-                x = random_sampling(x, 1024)
+                x = random_sampling(x, 1024) # 1024 x 7
                 instance_points.append(x)
 
-                if ins_class == object_cat:
+                if ins_class == object_cat: # object category is target object
                     pc = x[:, :3]
                     coords, feats = sparse_quantize(
                         pc,

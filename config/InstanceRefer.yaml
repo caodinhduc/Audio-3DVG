@@ -38,8 +38,8 @@ MODEL:
 
   # pretrain
   # use_checkpoint: 'checkpoints/InstanceRefer_xyzrgb'
-  # use_checkpoint: 'checkpoints/checkpoints'
   use_checkpoint: False
+  
   use_pretrained: False
 
 TRAIN:
