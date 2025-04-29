@@ -8,3 +8,6 @@ data/*.json
 outputs/
 data/scannet/pointgroup_data
 PointGroupInst/
+data/contextual_data_train
+data/contextual_data_val
+.ipynb_checkpoints/*

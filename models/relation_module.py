@@ -36,7 +36,7 @@ class RelationModule(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def filter_candidates(self, data_dict, lang_feats, lang_cls_pred):
-        instance_points = data_dict['instance_points']
+        instance_points = data_dict['instance_points'] # B: number of object * 1024, adding information
         pred_obb_batch = data_dict['pred_obb_batch']
         instance_obbs = data_dict['instance_obbs']
         batch_size = len(instance_points)
