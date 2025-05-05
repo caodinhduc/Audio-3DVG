@@ -19,6 +19,7 @@ MODEL:
 
   # Filtering candidates
   use_gt_lang: True
+  use_gt_audio: True
 
   # Attribute Module
   attribute_module: attribute_module
@@ -32,6 +33,12 @@ MODEL:
   scene_module: scene_module
   voxel_size_glp: 0.05
 
+  # Audio Module
+  audio_module: audio_module
+
+   # Audio Module
+  feature_module: feature_module
+
   # Language Module
   language_module: lang_module
   use_bidir: True # bi-directional GRU
@@ -42,7 +49,7 @@ MODEL:
   use_pretrained: False
 
 TRAIN:
-  batch_size: 16
+  batch_size: 4
   num_workers: 4
   epoch: 25
 

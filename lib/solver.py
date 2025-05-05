@@ -235,9 +235,8 @@ class Solver():
         # change dataloader
         dataloader = dataloader if phase == "train" else tqdm(dataloader)
         fetch_time_start = time.time()
-
+        sum_label = 0
         for data_dict in dataloader:
-
             # move to cuda
             for key in data_dict:
                 if key in ['lang_feat', 'lang_len', 'object_cat', 'lidar', 'point_min', 'point_max', 'mlm_label', # REMOVE lang_len
@@ -311,6 +310,7 @@ class Solver():
 
                 self._global_iter_id += 1
             fetch_time_start = time.time()
+        
 
         # check best
         if phase == "val":

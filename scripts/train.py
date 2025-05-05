@@ -17,8 +17,8 @@ from lib.solver import Solver
 from lib.config import CONF
 from models.instancerefer import InstanceRefer
 
-SCANREFER_TRAIN = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_1000_train_with_id.json")))
-SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_200_val_with_id.json")))
+SCANREFER_TRAIN = json.load(open(os.path.join(CONF.PATH.DATA, "train_data.json")))
+SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "val_data.json")))
 
 # constants
 DC = ScannetDatasetConfig()
@@ -90,9 +90,11 @@ def get_model(args):
 
         pretrained_path = os.path.join(args.use_pretrained, "model.pth")
         pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
+        model.audio = pretrained_model.audio
         model.lang = pretrained_model.lang
         model.attribute = pretrained_model.attribute
         model.relation = pretrained_model.relation
+        model.feature = pretrained_model.feature
         model.scene = pretrained_model.scene
 
     # to CUDA

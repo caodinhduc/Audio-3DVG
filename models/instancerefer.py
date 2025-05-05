@@ -16,9 +16,18 @@ class InstanceRefer(nn.Module):
         super().__init__()
         self.args = args
 
+        # --------- AUDIO ENCODING ---------
+        module = importlib.import_module(args.audio_module)
+        self.audio = module.AudioModule()
+
         # --------- LANGUAGE ENCODING ---------
         module = importlib.import_module(args.language_module)
         self.lang = module.LangModule(args.num_classes, True, args.use_bidir, 300, 128)
+
+
+        # --------- FEATURE ENCODING ---------
+        module = importlib.import_module(args.feature_module)
+        self.feature = module.FeatureModule()
 
         # --------- INSTANCE ENCODING ---------
         if args.attribute_module:
@@ -53,7 +62,12 @@ class InstanceRefer(nn.Module):
             end_points: dict
         """
         ### language module
+        data_dict = self.audio(data_dict) # B x 1 x 1024
+
+        ### language module
         data_dict = self.lang(data_dict)
+        ### language module
+        data_dict = self.feature(data_dict)
 
         ### attribute module
         if self.args.attribute_module:

@@ -5,12 +5,15 @@ import pickle
 import torch
 
 import numpy as np
+from tqdm import tqdm
+from lib.config import CONF
+import pandas as pd
 
 sys.path.append(os.path.join(os.getcwd(), "lib"))  # HACK add the lib folder
 
 from torch.utils.data import Dataset
-from tqdm import tqdm
-from lib.config import CONF
+from torch.nn.utils.rnn import pad_sequence
+
 from utils.pc_utils import random_sampling, rotx, roty, rotz
 from data.scannet.model_util_scannet import ScannetDatasetConfig, rotate_aligned_boxes_along_axis
 from torchsparse import SparseTensor
@@ -21,6 +24,7 @@ from torchsparse.utils import sparse_collate_fn, sparse_quantize
 # data setting
 DC = ScannetDatasetConfig()
 MAX_NUM_OBJ = 128
+MAX_AUDIO_FRAME = 3000
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
 
 # data path
@@ -51,6 +55,15 @@ class ScannetReferenceDataset(Dataset):
         self.use_multiview = args.use_multiview
         self.augment = args.use_augment if split == "train" else False
 
+        if split == 'train':
+            self.audio_path = 'data/contextual_data_train'
+            self.nel_path = 'data/data_train.csv'
+        else:
+            self.audio_path = 'data/contextual_data_val'
+            self.nel_path = 'data/data_val.csv'
+
+        self.audio_class, self.nel_label = self._load_nel_label()
+
         # load data
         self._load_data()
 
@@ -66,9 +79,21 @@ class ScannetReferenceDataset(Dataset):
     def __getitem__(self, idx):
         scene_id = self.scanrefer[idx]["scene_id"]
         object_id = int(self.scanrefer[idx]["object_id"])
+        # print(self.scanrefer[idx])
         object_name = " ".join(self.scanrefer[idx]["object_name"].split("_"))
         ann_id = int(self.scanrefer[idx]["ann_id"])
         object_cat = self.raw2label[object_name] if object_name in self.raw2label else 17
+
+        # load voice feature
+        audio_feature = torch.load(os.path.join(self.audio_path, "{}.pt".format(idx)))
+        audio_length = audio_feature.shape[1]
+        if audio_length < MAX_AUDIO_FRAME:
+            padd_feature = torch.zeros((1, 3000 - audio_length, 1024))
+            audio_feature = torch.cat((audio_feature, padd_feature), dim=1)
+
+        # load classification and NEL label
+        audio_class =  self.audio_class[idx]
+        nel_label =  self.nel_label[idx]
 
         # tokenize the description
         tokens = self.scanrefer[idx]["token"]
@@ -136,17 +161,21 @@ class ScannetReferenceDataset(Dataset):
         # ------------------------------- LABELS ------------------------------
         target_bboxes = np.zeros((MAX_NUM_OBJ, 6))
         target_bboxes_mask = np.zeros((MAX_NUM_OBJ))
+
         angle_classes = np.zeros((MAX_NUM_OBJ,))
         angle_residuals = np.zeros((MAX_NUM_OBJ,))
+
         size_classes = np.zeros((MAX_NUM_OBJ,))
         size_residuals = np.zeros((MAX_NUM_OBJ, 3))
+
         ref_box_label = np.zeros(MAX_NUM_OBJ)  # bbox label for reference target
         ref_center_label = np.zeros(3)  # bbox center for reference target
+
         ref_heading_class_label = 0
         ref_heading_residual_label = 0
         ref_size_class_label = 0
         ref_size_residual_label = np.zeros(3)  # bbox size residual for reference target
-        scene_points = np.zeros((1, 10))
+        # scene_points = np.zeros((1, 10))
 
         if self.split != "test":
             num_bbox = instance_bboxes.shape[0] if instance_bboxes.shape[0] < MAX_NUM_OBJ else MAX_NUM_OBJ
@@ -204,19 +233,22 @@ class ScannetReferenceDataset(Dataset):
         else:
             num_bbox = 1
 
+        # ------------------------------- DATA HANDLING ------------------------------
         instance_points = []
         instance_class = []
         ref_target = []
         ins_obbs = []
         pts_batch = []
         pred_obbs = []
+        # print(np.unique(instance_labels))
         for i_instance in np.unique(instance_labels):
 
+           
             # find all points belong to that instance
             ind = np.nonzero(instance_labels == i_instance)[0]
 
-            # find the label
-            ins_class = semantic_labels[ind[0]] # take the first is ok
+            # find the semantic label
+            ins_class = semantic_labels[ind[0]]
             if ins_class in DC.nyu40ids:
                 x = point_cloud[ind]
                 ins_class = DC.nyu40id2class[int(ins_class)]
@@ -227,10 +259,10 @@ class ScannetReferenceDataset(Dataset):
                 size = pc.max(0) - pc.min(0)
                 ins_obb = np.concatenate((center, size, np.array([0])))
                 ins_obbs.append(ins_obb)
-                x = random_sampling(x, 1024) # 1024 x 7
+                x = random_sampling(x, 1024)
                 instance_points.append(x)
 
-                if ins_class == object_cat: # object category is target object
+                if ins_class == object_cat:
                     pc = x[:, :3]
                     coords, feats = sparse_quantize(
                         pc,
@@ -250,13 +282,14 @@ class ScannetReferenceDataset(Dataset):
                 else:
                     ref_target.append(0)
             else:
-                scene_points = point_cloud[ind]
+                # scene_points = point_cloud[ind]
+                continue
 
-        target_bboxes_semcls = np.zeros((MAX_NUM_OBJ))
-        try:
-            target_bboxes_semcls[0:num_bbox] = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:, -2][0:num_bbox]]
-        except KeyError:
-            pass
+        # target_bboxes_semcls = np.zeros((MAX_NUM_OBJ))
+        # try:
+        #     target_bboxes_semcls[0:num_bbox] = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:, -2][0:num_bbox]]
+        # except KeyError:
+        #     pass
 
         pc = point_cloud[:, :3]
         coords, feats = sparse_quantize(
@@ -266,18 +299,29 @@ class ScannetReferenceDataset(Dataset):
         )
         pt = SparseTensor(feats, coords)
 
+
+
         data_dict = {}
+
+        data_dict['audio_feature'] = audio_feature
+        data_dict['audio_length'] = audio_length
+        data_dict['audio_class'] = audio_class
+        data_dict['nel_label'] = nel_label
+
         data_dict['lidar'] = pt
         data_dict['pts_batch'] = pts_batch
         data_dict['pred_obb_batch'] = pred_obbs
-        data_dict['scene_points'] = [scene_points]
+        # data_dict['scene_points'] = [scene_points]
         data_dict['point_min'] = point_cloud.min(0)[:3]
         data_dict['point_max'] = point_cloud.max(0)[:3]
         data_dict['instance_labels'] = instance_labels.astype(np.int64)
+
         data_dict['instance_points'] = instance_points
         data_dict['instance_class'] = instance_class
         data_dict['instance_obbs'] = ins_obbs
-        data_dict["point_clouds"] = point_cloud.astype(np.float32)  # point cloud data including features
+        data_dict["point_clouds"] = point_cloud.astype(np.float32)  # scene point cloud
+
+        
         data_dict["lang_feat"] = lang_feat.astype(np.float32)  # language feature vectors
         data_dict["lang_token"] = lang_token
         data_dict["lang_len"] = np.array(lang_len).astype(np.int64)  # length of each description
@@ -291,6 +335,7 @@ class ScannetReferenceDataset(Dataset):
         data_dict["num_bbox"] = np.array(num_bbox).astype(np.int64)
         data_dict["scan_idx"] = np.array(idx).astype(np.int64)
         data_dict["pcl_color"] = pcl_color
+
         data_dict["ref_box_label"] = ref_box_label.astype(np.int64)  # 0/1 reference labels for each object bbox
         data_dict["ref_center_label"] = ref_center_label.astype(np.float32)
         data_dict["ref_heading_class_label"] = np.array(int(ref_heading_class_label)).astype(np.int64)
@@ -322,7 +367,7 @@ class ScannetReferenceDataset(Dataset):
                 raw2label[raw_name] = scannet2label['others']
             else:
                 raw2label[raw_name] = scannet2label[nyu40_name]
-        print(raw2label)
+        # print(raw2label)
         return raw2label
 
     def _get_unique_multiple_lookup(self):
@@ -458,6 +503,10 @@ class ScannetReferenceDataset(Dataset):
         bbox[:, :3] += factor
 
         return point_set, bbox
+    
+    def _load_nel_label(self):
+        df =  pd.read_csv(self.nel_path)
+        return df['class'].to_numpy(), df['nel'].to_numpy()
 
     @staticmethod
     def collate_fn(inputs):
