@@ -102,7 +102,7 @@ class RelationModule(nn.Module):
 
         scores = nn.functional.cosine_similarity(feats, lang_feats_flatten, dim=1)
 
-        data_dict['relation_scores'] = scores
+        data_dict['relation_scores'] = scores # accumulate list of batch score ex: 43
 
         return data_dict
 

@@ -110,7 +110,6 @@ class FeatureModule(nn.Module):
             bts_relation_mask.append(relation_mask)
             bts_relation_label_embedding.append(relation_label_embedding)
 
-
         
         bts_candidate_point = torch.tensor(bts_candidate_point).cuda()
         bts_relation_point = torch.tensor(bts_relation_point).cuda()

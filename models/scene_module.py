@@ -103,7 +103,7 @@ class SceneModule(nn.Module):
         obj_feats_flatten = self.vis_emb_fc1(obj_feats_flatten)
         scores = nn.functional.cosine_similarity(obj_feats_flatten, scene_feats_flatten, dim=1)
 
-        data_dict['scene_scores'] = scores
+        data_dict['scene_scores'] = scores # accumulate list of batch score ex: 43
 
         return data_dict
 

@@ -125,8 +125,8 @@ class AttributeModule(nn.Module):
         lang_feats_flatten = torch.cat(lang_feats_flatten, dim=0)
         scores = torch.sum(feats * lang_feats_flatten, dim=1)
 
-        data_dict['attribute_scores'] = scores
-        data_dict['pred_obb_batch'] = pred_obb_batch
+        data_dict['attribute_scores'] = scores # accumulate list of batch score ex: 43
+        data_dict['pred_obb_batch'] = pred_obb_batch # B x N with N is follow the num of filter object 
 
         return data_dict
 
