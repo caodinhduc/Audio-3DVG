@@ -28,6 +28,9 @@ class InstanceRefer(nn.Module):
         # --------- FEATURE ENCODING ---------
         module = importlib.import_module(args.feature_module)
         self.feature = module.FeatureModule()
+        # --------- FEATURE ENCODING ---------
+        module = importlib.import_module(args.attention_module)
+        self.attention = module.AttentionModule()
 
         # --------- INSTANCE ENCODING ---------
         if args.attribute_module:
@@ -61,13 +64,15 @@ class InstanceRefer(nn.Module):
         Returns:
             end_points: dict
         """
-        ### language module
+        ### audio module
         data_dict = self.audio(data_dict) # B x 1 x 1024
 
         ### language module
         data_dict = self.lang(data_dict)
-        ### language module
+        ### feature module
         data_dict = self.feature(data_dict)
+        ### attention module
+        data_dict = self.attention(data_dict)
 
         ### attribute module
         if self.args.attribute_module:

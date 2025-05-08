@@ -36,8 +36,11 @@ MODEL:
   # Audio Module
   audio_module: audio_module
 
-   # Audio Module
+  # Feature Module
   feature_module: feature_module
+
+  # Attention Module
+  attention_module: attention_module
 
   # Language Module
   language_module: lang_module

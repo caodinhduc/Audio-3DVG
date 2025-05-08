@@ -15,18 +15,6 @@ class FeatureModule(nn.Module):
         self.MAX_NUM_OBJECT = 8
         self.TEXT_EMBEDDING_DIM = 300
 
-    def make_sphere(self, points):
-        centroid = np.mean(points, axis=0)
-        normalized_points = points - centroid
-        max_dist = np.max(np.linalg.norm(normalized_points, axis=1))
-        normalized_points /= max_dist
-        min_vals = np.min(points, axis=0)
-        max_vals = np.max(points, axis=0)
-        normalized_points = (points - min_vals) / (max_vals - min_vals)
-        mean = np.mean(points, axis=0)
-        std = np.std(points, axis=0)
-        normalized_points = (points - mean) / std
-        return normalized_points
 
     def forward(self, data_dict):
         batch_size = len(data_dict['instance_points'])
@@ -133,6 +121,7 @@ class FeatureModule(nn.Module):
         data_dict["target_representation"] = target_representation # B x 16 x 1074
         data_dict["relation_representation"] = relation_representation # B x 16 x 1074
         data_dict["bts_audio_feature"] = bts_audio_feature # B x 16 x 1074
+        data_dict["bts_candidate_obbs"] = bts_candidate_obbs
         data_dict["bts_relation_obbs"] = bts_relation_obbs
         data_dict["bts_candidate_mask"] = bts_candidate_mask
         data_dict["bts_relation_mask"] = bts_relation_mask
