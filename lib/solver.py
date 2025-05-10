@@ -214,6 +214,7 @@ class Solver():
         self._running_log["ref_loss"] = data_dict["ref_loss"]
         self._running_log["lang_loss"] = data_dict["lang_loss"]
         self._running_log["seg_loss"] = data_dict["seg_loss"]
+        self._running_log["class_loss"] = data_dict["class_loss"]
         self._running_log["loss"] = data_dict["loss"]
 
     def _eval(self, data_dict):
@@ -250,6 +251,7 @@ class Solver():
                 "ref_loss": 0,
                 "lang_loss": 0,
                 "seg_loss": 0,
+                "class_loss": 0,
                 # acc
                 "lang_acc": 0,
                 "ref_acc": 0,
@@ -285,6 +287,7 @@ class Solver():
             self.log[phase]["ref_loss"].append(self._running_log["ref_loss"].item())
             self.log[phase]["lang_loss"].append(self._running_log["lang_loss"].item())
             self.log[phase]["seg_loss"].append(self._running_log["seg_loss"].item())
+            self.log[phase]["class_loss"].append(self._running_log["class_loss"].item())
 
             self.log[phase]["lang_acc"].append(self._running_log["lang_acc"])
             self.log[phase]["ref_acc"].append(self._running_log["ref_acc"])
@@ -330,6 +333,7 @@ class Solver():
                 self.best["ref_loss"] = np.mean(self.log[phase]["ref_loss"])
                 self.best["lang_loss"] = np.mean(self.log[phase]["lang_loss"])
                 self.best["seg_loss"] = np.mean(self.log[phase]["seg_loss"])
+                self.best["class_loss"] = np.mean(self.log[phase]["class_loss"])
                 self.best["lang_acc"] = np.mean(self.log[phase]["lang_acc"])
                 self.best["ref_acc"] = np.mean(self.log[phase]["ref_acc"])
                 self.best["seg_acc"] = np.mean(self.log[phase]["seg_acc"])
@@ -343,7 +347,7 @@ class Solver():
 
     def _dump_log(self, phase):
         log = {
-            "loss": ["loss", "ref_loss", "lang_loss", "seg_loss"],
+            "loss": ["loss", "ref_loss", "lang_loss", "seg_loss", "class_loss"],
             "score": ["lang_acc", "ref_acc", "seg_acc"]
         }
         for key in log:
@@ -475,6 +479,7 @@ class Solver():
                 "ref_loss": [],
                 "lang_loss": [],
                 "seg_loss": [],
+                "class_loss": [],
                 # scores (float, not torch.cuda.FloatTensor)
                 "lang_acc": [],
                 "ref_acc": [],

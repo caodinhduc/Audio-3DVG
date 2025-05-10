@@ -3,6 +3,7 @@ import sys
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 
 sys.path.append(os.path.join(os.getcwd(), "lib"))  # HACK add the lib folder
@@ -106,6 +107,14 @@ class ContrastiveLoss(nn.Module):
         loss = torch.clamp(neg_sim - sim + self.margin, min=0).sum()
         return loss
 
+class TargetClassificationLoss(nn.Module):
+    def __init__(self):
+        super(TargetClassificationLoss, self).__init__()
+        self.criterion = torch.nn.BCEWithLogitsLoss()
+
+    def forward(self, gt, pred):
+        return self.criterion(gt, pred)
+
 
 class SegLoss(nn.Module):
     def __init__(self, alpha=0.25, gamma=2, weight=None, ignore_index=255):
@@ -204,6 +213,7 @@ def get_loss(data_dict, config):
         data_dict: dict
     """
     lang_loss = compute_lang_classification_loss(data_dict)
+    object_loss = TargetClassificationLoss().cuda()
     data_dict["lang_loss"] = lang_loss
     seg_loss, seg_acc = compute_scene_mask_loss(data_dict)
 
@@ -230,6 +240,39 @@ def get_loss(data_dict, config):
     criterion = ContrastiveLoss(margin=0.2, gamma=5)
     ref_loss = torch.zeros(1).cuda().requires_grad_(True)
     start_idx = 0
+
+    # LOSS FOR MY IMPLEMENTATION
+    class_loss = torch.zeros(1).cuda().requires_grad_(True)
+    bts_candidate_obbs = data_dict["bts_candidate_obbs"]
+    scores = data_dict["score"]
+    batch_pred_scores = []
+    batch_pred_label = []
+    for ii in range(batch_size):
+        candidate_obbs = bts_candidate_obbs[ii].cpu().numpy() # 16 x 6
+        pred_score = scores[ii].reshape(-1) # 16 x 1
+        x = pred_score.detach().cpu().numpy()
+        one_hot = np.zeros_like(x)
+        one_hot[np.argmax(x)] = 1
+        batch_pred_scores += one_hot.tolist()
+
+        # debug_label = np.zeros(batch_size)
+        # debug_pred_obb = pred_obb_batch[ii] # np.array 8 x 7
+        # debug_pred_bbox = get_3d_box_batch(debug_pred_obb[:, 3:6], debug_pred_obb[:, 6], debug_pred_obb[:, 0:3])
+        # debug_ious = box3d_iou_batch(debug_pred_bbox, np.tile(ref_gt_bbox[ii], (debug_pred_obb.shape[0], 1, 1)))
+        # debug_label[debug_ious.argmax()] = 1  # treat the bbox with highest iou score as the gt
+        label = np.zeros(16)
+        pred_bbox = get_3d_box_batch(candidate_obbs[:, 3:6], np.zeros(16), candidate_obbs[:, 0:3])
+        ious = box3d_iou_batch(pred_bbox, np.tile(ref_gt_bbox[ii], (16, 1, 1)))
+        label[ious.argmax()] = 1  # 16
+        batch_pred_label += label.tolist()
+        class_loss = class_loss + object_loss(torch.from_numpy(label).cuda(), pred_score)
+    class_loss = lang_loss / batch_size
+    print('target classification loss: ', class_loss)
+    batch_pred_scores = np.array(batch_pred_scores)
+    # batch_pred_scores = (batch_pred_scores >= 0.5).astype(int)
+    accuracy = np.mean(batch_pred_scores == batch_pred_label)
+    print('acc: ', accuracy)
+
     for i in range(batch_size):
         pred_obb = pred_obb_batch[i]  # (num, 7)
         num_filtered_obj = pred_obb.shape[0]
@@ -264,6 +307,7 @@ def get_loss(data_dict, config):
     data_dict["seg_loss"] = seg_loss
     data_dict['seg_acc'] = seg_acc
     data_dict['seg_loss'] = seg_loss
+    data_dict['class_loss'] = class_loss
     data_dict['cluster_label'] = cluster_label
 
     return data_dict

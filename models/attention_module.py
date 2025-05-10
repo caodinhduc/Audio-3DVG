@@ -32,6 +32,6 @@ class AttentionModule(nn.Module):
         repeated_bts_audio = bts_audio_feature.repeat(1, 16, 1)
         final_representation = torch.cat((target_representation, repeated_bts_audio), dim=2)
         scores = self.fc(final_representation)
+        data_dict['score'] = scores
         # concatenate
-
         return data_dict

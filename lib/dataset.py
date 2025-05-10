@@ -271,8 +271,8 @@ class ScannetReferenceDataset(Dataset):
                     )
                     pt_inst = SparseTensor(feats, coords)
 
-                    if len(ins_obb) < 2:
-                        continue
+                    # if len(ins_obb) < 2:
+                    #     continue
 
                     pred_obbs.append(ins_obb)
                     pts_batch.append(pt_inst)

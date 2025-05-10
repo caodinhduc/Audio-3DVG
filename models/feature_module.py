@@ -121,7 +121,7 @@ class FeatureModule(nn.Module):
         data_dict["target_representation"] = target_representation # B x 16 x 1074
         data_dict["relation_representation"] = relation_representation # B x 16 x 1074
         data_dict["bts_audio_feature"] = bts_audio_feature # B x 16 x 1074
-        data_dict["bts_candidate_obbs"] = bts_candidate_obbs
+        data_dict["bts_candidate_obbs"] = bts_candidate_obbs # B x 16 x 6
         data_dict["bts_relation_obbs"] = bts_relation_obbs
         data_dict["bts_candidate_mask"] = bts_candidate_mask
         data_dict["bts_relation_mask"] = bts_relation_mask
