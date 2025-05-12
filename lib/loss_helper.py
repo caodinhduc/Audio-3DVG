@@ -263,6 +263,7 @@ def get_loss(data_dict, config):
         label = np.zeros(16)
         pred_bbox = get_3d_box_batch(candidate_obbs[:, 3:6], np.zeros(16), candidate_obbs[:, 0:3])
         ious = box3d_iou_batch(pred_bbox, np.tile(ref_gt_bbox[ii], (16, 1, 1)))
+        print('max iou: ', ious.max())
         label[ious.argmax()] = 1  # 16
         batch_pred_label += label.tolist()
         class_loss = class_loss + object_loss(torch.from_numpy(label).cuda(), pred_score)
@@ -296,6 +297,7 @@ def get_loss(data_dict, config):
         score = attribute_score + relation_score + scene_score
 
         start_idx += num_filtered_obj
+        print('max iou check: ', ious.max())
         if ious.max() < 0.2: continue
 
         ref_loss = ref_loss + criterion(score, label)
