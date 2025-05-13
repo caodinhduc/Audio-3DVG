@@ -85,15 +85,16 @@ class ScannetReferenceDataset(Dataset):
         object_cat = self.raw2label[object_name] if object_name in self.raw2label else 17
 
         # load voice feature
-        audio_feature = torch.load(os.path.join(self.audio_path, "{}.pt".format(idx)))
+        audio_id = self.scanrefer[idx]['id']
+        audio_feature = torch.load(os.path.join(self.audio_path, "{}.pt".format(audio_id)))
         audio_length = audio_feature.shape[1]
         if audio_length < MAX_AUDIO_FRAME:
             padd_feature = torch.zeros((1, 3000 - audio_length, 1024))
             audio_feature = torch.cat((audio_feature, padd_feature), dim=1)
 
         # load classification and NEL label
-        audio_class =  self.audio_class[idx]
-        nel_label =  self.nel_label[idx]
+        audio_class =  self.audio_class[int(audio_id)]
+        nel_label =  self.nel_label[int(audio_id)]
 
         # tokenize the description
         tokens = self.scanrefer[idx]["token"]

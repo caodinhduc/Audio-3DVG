@@ -15,82 +15,6 @@ GT_VOTE_FACTOR = 3  # number of GT votes per point
 OBJECTNESS_CLS_WEIGHTS = [0.2, 0.8]  # put larger weights on positive objectness
 
 
-class SoftmaxRankingLoss(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, inputs, targets):
-        # input check
-        assert inputs.shape == targets.shape
-
-        # compute the probabilities
-        probs = F.softmax(inputs + 1e-8, dim=0)
-        # reduction
-        loss = -torch.sum(torch.log(probs + 1e-8) * targets, dim=0).mean()
-
-        return loss
-
-
-class RankingLoss(nn.Module):
-    def __init__(self, reduction='mean'):
-        super(RankingLoss, self).__init__()
-        self.m = 0.2
-        self.gamma = 64
-        self.reduction = reduction
-        self.soft_plus = nn.Softplus()
-
-    def forward(self, sim, label):
-        loss_v = 0
-        loss_l = 0
-        loss_loc = 0
-        batch_size = label.shape[0]
-        delta_p = 1 - self.m
-        delta_n = self.m
-
-        for i in range(batch_size):
-            temp_label = label[i]
-            index = temp_label > 0.5
-            index = index.nonzero().squeeze(1)
-            if index.shape[0] > 0:
-                pos_sim = torch.index_select(sim[i], 0, index)
-                alpha_p = torch.clamp(0.8 - pos_sim.detach(), min=0)
-                logit_p = - alpha_p * (pos_sim - delta_p) * self.gamma
-            else:
-                logit_p = torch.zeros(1)[0].cuda()
-
-            index = (temp_label < 0.25)
-            index = (index).nonzero().squeeze(1)
-
-            neg_v_sim = torch.index_select(sim[i], 0, index)
-            if neg_v_sim.shape[0] > 20:
-                index = neg_v_sim.topk(10, largest=True)[1]
-                neg_v_sim = torch.index_select(neg_v_sim, 0, index)
-
-            alpha_n = torch.clamp(neg_v_sim.detach() - 0.2, min=0)
-            logit_n = alpha_n * (neg_v_sim - delta_n) * self.gamma
-
-            loss_loc += self.soft_plus(torch.logsumexp(logit_n, dim=0) + torch.logsumexp(logit_p, dim=0))
-
-        if self.reduction == 'mean':
-            loss = (loss_l + loss_v + loss_loc) / batch_size
-        return loss
-
-
-class SimCLRLoss(nn.Module):
-    def __init__(self, reduction='mean'):
-        super(SimCLRLoss, self).__init__()
-        self.m = 0.2
-        self.gamma = 64
-        self.reduction = reduction
-        self.soft_plus = nn.Softplus()
-
-    def forward(self, sim, label):
-        sim = torch.exp(7 * sim)
-        loss = - torch.log((sim * label).sum() / (sim.sum() - (sim * label).sum() + 1e-8))
-
-        return loss
-
-
 class ContrastiveLoss(nn.Module):
     def __init__(self, margin=0.2, gamma=5, reduction='mean'):
         super(ContrastiveLoss, self).__init__()
@@ -247,32 +171,32 @@ def get_loss(data_dict, config):
     scores = data_dict["score"]
     batch_pred_scores = []
     batch_pred_label = []
+    batch_size = bts_candidate_obbs.shape[0]
     for ii in range(batch_size):
         candidate_obbs = bts_candidate_obbs[ii].cpu().numpy() # 16 x 6
         pred_score = scores[ii].reshape(-1) # 16 x 1
+
+        # just for eval
         x = pred_score.detach().cpu().numpy()
         one_hot = np.zeros_like(x)
         one_hot[np.argmax(x)] = 1
-        batch_pred_scores += one_hot.tolist()
+        batch_pred_scores.append(one_hot.tolist())
 
-        # debug_label = np.zeros(batch_size)
-        # debug_pred_obb = pred_obb_batch[ii] # np.array 8 x 7
-        # debug_pred_bbox = get_3d_box_batch(debug_pred_obb[:, 3:6], debug_pred_obb[:, 6], debug_pred_obb[:, 0:3])
-        # debug_ious = box3d_iou_batch(debug_pred_bbox, np.tile(ref_gt_bbox[ii], (debug_pred_obb.shape[0], 1, 1)))
-        # debug_label[debug_ious.argmax()] = 1  # treat the bbox with highest iou score as the gt
         label = np.zeros(16)
         pred_bbox = get_3d_box_batch(candidate_obbs[:, 3:6], np.zeros(16), candidate_obbs[:, 0:3])
         ious = box3d_iou_batch(pred_bbox, np.tile(ref_gt_bbox[ii], (16, 1, 1)))
-        print('max iou: ', ious.max())
+        # print('max iou: ', ious.max())
         label[ious.argmax()] = 1  # 16
-        batch_pred_label += label.tolist()
+        batch_pred_label.append(label.tolist())
         class_loss = class_loss + object_loss(torch.from_numpy(label).cuda(), pred_score)
     class_loss = lang_loss / batch_size
+
     print('target classification loss: ', class_loss)
-    batch_pred_scores = np.array(batch_pred_scores)
-    # batch_pred_scores = (batch_pred_scores >= 0.5).astype(int)
-    accuracy = np.mean(batch_pred_scores == batch_pred_label)
-    print('acc: ', accuracy)
+    y_true_indices = np.argmax(batch_pred_label, axis=1)
+    y_pred_indices = np.argmax(batch_pred_scores, axis=1)
+    accuracy = np.mean(y_true_indices == y_pred_indices)
+
+    print('accuracy: ', accuracy)
 
     for i in range(batch_size):
         pred_obb = pred_obb_batch[i]  # (num, 7)
@@ -297,7 +221,7 @@ def get_loss(data_dict, config):
         score = attribute_score + relation_score + scene_score
 
         start_idx += num_filtered_obj
-        print('max iou check: ', ious.max())
+        # print('max iou check: ', ious.max())
         if ious.max() < 0.2: continue
 
         ref_loss = ref_loss + criterion(score, label)
