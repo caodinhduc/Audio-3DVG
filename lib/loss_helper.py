@@ -13,6 +13,7 @@ FAR_THRESHOLD = 0.6
 NEAR_THRESHOLD = 0.3
 GT_VOTE_FACTOR = 3  # number of GT votes per point
 OBJECTNESS_CLS_WEIGHTS = [0.2, 0.8]  # put larger weights on positive objectness
+MAX_NUM_OBJECT = 8
 
 
 class ContrastiveLoss(nn.Module):
@@ -34,7 +35,7 @@ class ContrastiveLoss(nn.Module):
 class TargetClassificationLoss(nn.Module):
     def __init__(self):
         super(TargetClassificationLoss, self).__init__()
-        self.criterion = torch.nn.BCEWithLogitsLoss()
+        self.criterion = torch.nn.CrossEntropyLoss()
 
     def forward(self, gt, pred):
         return self.criterion(gt, pred)
@@ -168,35 +169,31 @@ def get_loss(data_dict, config):
     # LOSS FOR MY IMPLEMENTATION
     class_loss = torch.zeros(1).cuda().requires_grad_(True)
     bts_candidate_obbs = data_dict["bts_candidate_obbs"]
-    scores = data_dict["score"]
+    scores = data_dict["score"] # B x 8 x 1
     batch_pred_scores = []
     batch_pred_label = []
     batch_size = bts_candidate_obbs.shape[0]
-    for ii in range(batch_size):
-        candidate_obbs = bts_candidate_obbs[ii].cpu().numpy() # 16 x 6
-        pred_score = scores[ii].reshape(-1) # 16 x 1
+    label = []
+    for ii in range(batch_size):  
+        candidate_obbs = bts_candidate_obbs[ii].cpu().numpy() # MAX_NUM_OBJECT x 6
+        pred_score = scores[ii].reshape(-1) # MAX_NUM_OBJECT x 1
 
         # just for eval
         x = pred_score.detach().cpu().numpy()
-        one_hot = np.zeros_like(x)
-        one_hot[np.argmax(x)] = 1
-        batch_pred_scores.append(one_hot.tolist())
+        batch_pred_scores.append(int(np.argmax(x)))
 
-        label = np.zeros(16)
-        pred_bbox = get_3d_box_batch(candidate_obbs[:, 3:6], np.zeros(16), candidate_obbs[:, 0:3])
-        ious = box3d_iou_batch(pred_bbox, np.tile(ref_gt_bbox[ii], (16, 1, 1)))
+        pred_bbox = get_3d_box_batch(candidate_obbs[:, 3:6], np.zeros(MAX_NUM_OBJECT), candidate_obbs[:, 0:3])
+        ious = box3d_iou_batch(pred_bbox, np.tile(ref_gt_bbox[ii], (MAX_NUM_OBJECT, 1, 1)))
         # print('max iou: ', ious.max())
-        label[ious.argmax()] = 1  # 16
-        batch_pred_label.append(label.tolist())
-        class_loss = class_loss + object_loss(torch.from_numpy(label).cuda(), pred_score)
-    class_loss = lang_loss / batch_size
+        label.append(ious.argmax())  # MAX_NUM_OBJECT
+        # batch_pred_label.append(label.tolist())
+    label = np.array(label)
+    class_loss = class_loss + object_loss(scores.reshape(batch_size, 8), torch.from_numpy(label).long().cuda())
 
+
+    accuracy = np.mean(batch_pred_scores == label)
+    print(f"Accuracy: {accuracy:.2f}")
     print('target classification loss: ', class_loss)
-    y_true_indices = np.argmax(batch_pred_label, axis=1)
-    y_pred_indices = np.argmax(batch_pred_scores, axis=1)
-    accuracy = np.mean(y_true_indices == y_pred_indices)
-
-    print('accuracy: ', accuracy)
 
     for i in range(batch_size):
         pred_obb = pred_obb_batch[i]  # (num, 7)
@@ -229,7 +226,7 @@ def get_loss(data_dict, config):
     ref_loss = ref_loss / batch_size
     data_dict['ref_loss'] = ref_loss
 
-    data_dict['loss'] = 10 * ref_loss + lang_loss + seg_loss
+    data_dict['loss'] = ref_loss + lang_loss + seg_loss + 10 * class_loss
     data_dict["seg_loss"] = seg_loss
     data_dict['seg_acc'] = seg_acc
     data_dict['seg_loss'] = seg_loss

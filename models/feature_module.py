@@ -66,23 +66,23 @@ class FeatureModule(nn.Module):
                         relation_mask.append(1)
                         relation_label_embedding.append(self.text_encoder[str(i_class)])
             # filtering to MAX OBJECT
-            if len(candidate_point) > 16:
-                candidate_point = candidate_point[:16]
-                candidate_obbs = candidate_obbs[:16]
-                candidate_mask = candidate_mask[:16]
-                candidate_label_embedding = candidate_label_embedding[:16]
-            if len(relation_point) > 16:
-                relation_point = relation_point[:16]
-                relation_obbs = relation_obbs[:16]
-                relation_mask = relation_mask[:16]
-                relation_label_embedding = relation_label_embedding[:16]
+            if len(candidate_point) > self.MAX_NUM_OBJECT:
+                candidate_point = candidate_point[:self.MAX_NUM_OBJECT]
+                candidate_obbs = candidate_obbs[:self.MAX_NUM_OBJECT]
+                candidate_mask = candidate_mask[:self.MAX_NUM_OBJECT]
+                candidate_label_embedding = candidate_label_embedding[:self.MAX_NUM_OBJECT]
+            if len(relation_point) > self.MAX_NUM_OBJECT:
+                relation_point = relation_point[:self.MAX_NUM_OBJECT]
+                relation_obbs = relation_obbs[:self.MAX_NUM_OBJECT]
+                relation_mask = relation_mask[:self.MAX_NUM_OBJECT]
+                relation_label_embedding = relation_label_embedding[:self.MAX_NUM_OBJECT]
             # filtering to MAX OBJECT
-            while len(candidate_point) < 16:
+            while len(candidate_point) < self.MAX_NUM_OBJECT:
                 candidate_point.append(np.zeros((1024, 6)).tolist())
                 candidate_obbs.append(np.zeros(6).tolist())
                 candidate_mask.append(0)
                 candidate_label_embedding.append(np.zeros(300).tolist())
-            while len(relation_point) < 16:
+            while len(relation_point) < self.MAX_NUM_OBJECT:
                 relation_point.append(np.zeros((1024, 6)).tolist())
                 relation_obbs.append(np.zeros(6).tolist())
                 relation_mask.append(0)
@@ -102,26 +102,26 @@ class FeatureModule(nn.Module):
         bts_candidate_point = torch.tensor(bts_candidate_point).cuda()
         bts_relation_point = torch.tensor(bts_relation_point).cuda()
 
-        bts_candidate_obbs = torch.tensor(bts_candidate_obbs).cuda() # B x 16 x 6
-        bts_relation_obbs = torch.tensor(bts_relation_obbs).cuda()  # B x 16 x 6
+        bts_candidate_obbs = torch.tensor(bts_candidate_obbs).cuda() # B x self.MAX_NUM_OBJECT x 6
+        bts_relation_obbs = torch.tensor(bts_relation_obbs).cuda()  # B x self.MAX_NUM_OBJECT x 6
 
-        bts_candidate_mask = torch.tensor(bts_candidate_mask).cuda() # B x 16
-        bts_relation_mask = torch.tensor(bts_relation_mask).cuda() # B x 16
+        bts_candidate_mask = torch.tensor(bts_candidate_mask).cuda() # B x self.MAX_NUM_OBJECT
+        bts_relation_mask = torch.tensor(bts_relation_mask).cuda() # B x self.MAX_NUM_OBJECT
 
-        bts_candidate_label_embedding = torch.tensor(bts_candidate_label_embedding).cuda() # B x 16 x 300
-        bts_relation_label_embedding = torch.tensor(bts_relation_label_embedding).cuda() # B x 16 x 300
+        bts_candidate_label_embedding = torch.tensor(bts_candidate_label_embedding).cuda() # B x self.MAX_NUM_OBJECT x 300
+        bts_relation_label_embedding = torch.tensor(bts_relation_label_embedding).cuda() # B x self.MAX_NUM_OBJECT x 300
 
         bts_audio_feature = torch.stack(bts_audio_feature).cuda() # B x 1 x 1024
 
         # input_pointnet = torch.cat([bts_candidate_point, bts_relation_point], dim=1).cuda()
         object_encoding = self.object_encoder(torch.cat([bts_candidate_point, bts_relation_point], dim=1)) # B x 32 x 768
 
-        target_representation = torch.cat((bts_candidate_obbs, bts_candidate_label_embedding, object_encoding[:, :16, :]), dim=2)
-        relation_representation = torch.cat((bts_relation_obbs, bts_relation_label_embedding, object_encoding[:, 16:, :]), dim=2)
-        data_dict["target_representation"] = target_representation # B x 16 x 1074
-        data_dict["relation_representation"] = relation_representation # B x 16 x 1074
-        data_dict["bts_audio_feature"] = bts_audio_feature # B x 16 x 1074
-        data_dict["bts_candidate_obbs"] = bts_candidate_obbs # B x 16 x 6
+        target_representation = torch.cat((bts_candidate_obbs, bts_candidate_label_embedding, object_encoding[:, :self.MAX_NUM_OBJECT, :]), dim=2)
+        relation_representation = torch.cat((bts_relation_obbs, bts_relation_label_embedding, object_encoding[:, self.MAX_NUM_OBJECT:, :]), dim=2)
+        data_dict["target_representation"] = target_representation # B x self.MAX_NUM_OBJECT x 1074
+        data_dict["relation_representation"] = relation_representation # B x self.MAX_NUM_OBJECT x 1074
+        data_dict["bts_audio_feature"] = bts_audio_feature # B x self.MAX_NUM_OBJECT x 1074
+        data_dict["bts_candidate_obbs"] = bts_candidate_obbs # B x self.MAX_NUM_OBJECT x 6
         data_dict["bts_relation_obbs"] = bts_relation_obbs
         data_dict["bts_candidate_mask"] = bts_candidate_mask
         data_dict["bts_relation_mask"] = bts_relation_mask

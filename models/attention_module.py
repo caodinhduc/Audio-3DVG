@@ -11,14 +11,14 @@ class AttentionModule(nn.Module):
         super().__init__()
 
         self.fc = nn.Sequential(nn.Linear(2098, 1024),
-                            nn.BatchNorm1d(16),
+                            nn.BatchNorm1d(8),
                             nn.ReLU(),
                             nn.Linear(1024, 128),
                             # nn.BatchNorm1d(128),
                             nn.ReLU(),
                             nn.Linear(128, 1),
                             )
-
+        self.MAX_NUM_OBJECT = 8
     def forward(self, data_dict):
         
         target_representation = data_dict["target_representation"] # B x 16 x 1074
@@ -29,7 +29,7 @@ class AttentionModule(nn.Module):
         bts_candidate_mask = data_dict["bts_candidate_mask"] # B x 16 
         bts_relation_mask = data_dict["bts_relation_mask"] # B x 16
 
-        repeated_bts_audio = bts_audio_feature.repeat(1, 16, 1)
+        repeated_bts_audio = bts_audio_feature.repeat(1, self.MAX_NUM_OBJECT, 1)
         final_representation = torch.cat((target_representation, repeated_bts_audio), dim=2)
         scores = self.fc(final_representation)
         data_dict['score'] = scores
