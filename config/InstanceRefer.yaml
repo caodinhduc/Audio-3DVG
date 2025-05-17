@@ -47,9 +47,9 @@ MODEL:
   use_bidir: True # bi-directional GRU
 
   # pretrain
-  # use_checkpoint: 'checkpoints/InstanceRefer_xyzrgb'
-  use_checkpoint: False
-  use_pretrained: False
+  use_checkpoint: '/home/duccd/Desktop/InstanceRefer/outputs/ScanRefer/test/checkpoints'
+  # use_checkpoint: False
+  # use_pretrained: False
 
 TRAIN:
   batch_size: 16

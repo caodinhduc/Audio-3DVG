@@ -12,3 +12,4 @@ data/contextual_data_train
 data/contextual_data_val
 .ipynb_checkpoints/*
 wiki-news-300d-1M.vec
+data/small_data
