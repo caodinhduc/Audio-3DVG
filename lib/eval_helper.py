@@ -45,6 +45,53 @@ def get_eval(data_dict, config):
     # cluster_labels: binary id of id
     # ref_gt_obb: B x 7
 
+
+    # MY EVAL IMPLEMENTATION
+    bts_candidate_mask = data_dict['bts_candidate_mask']
+    bts_candidate_obbs = data_dict["bts_candidate_obbs"]
+    scores = data_dict["score"] # B x 8 x 1
+    batch_size = bts_candidate_obbs.shape[0]
+    # label = []
+    m_num_missed = 0
+    for ii in range(batch_size):  
+        m_pred_obb = bts_candidate_obbs[ii]
+        m_num_filtered_obj = torch.sum(bts_candidate_mask[ii])
+        if m_num_filtered_obj == 0:
+            pred_obb = np.zeros(7)
+            m_num_missed += 1
+        elif m_num_filtered_obj == 1:
+            m_pred_obb = m_pred_obb[1]
+        else:
+            m_score = scores[ii].reshape(-1)
+
+            start_idx += num_filtered_obj
+            cluster_pred = torch.argmax(score, dim=0)
+            target = torch.argmax(cluster_labels[i], dim=0)
+            if target == cluster_pred:
+                ref_acc.append(1.)
+            else:
+                ref_acc.append(0.)
+
+            pred_obb = pred_obb_batch[i][cluster_pred]
+            print('hihi')
+    #     candidate_obbs = bts_candidate_obbs[ii].cpu().numpy() # MAX_NUM_OBJECT x 6
+    #     pred_score = scores[ii].reshape(-1) # MAX_NUM_OBJECT x 1
+
+    #     # just for eval
+    #     x = pred_score.detach().cpu().numpy()
+    #     batch_pred_scores.append(int(np.argmax(x)))
+
+    #     pred_bbox = get_3d_box_batch(candidate_obbs[:, 3:6], np.zeros(MAX_NUM_OBJECT), candidate_obbs[:, 0:3])
+    #     ious = box3d_iou_batch(pred_bbox, np.tile(ref_gt_bbox[ii], (MAX_NUM_OBJECT, 1, 1)))
+    #     # print('max iou: ', ious.max())
+    #     label.append(ious.argmax())  # MAX_NUM_OBJECT
+    #     # batch_pred_label.append(label.tolist())
+    # label = np.array(label)
+    # class_loss = class_loss + object_loss(scores.reshape(batch_size, 8), torch.from_numpy(label).long().cuda())
+
+    # END MY EVAL IMPLEMENTATION
+
+
     ious = []
     pred_bboxes = []
     gt_bboxes = []

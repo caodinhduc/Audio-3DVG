@@ -160,6 +160,7 @@ def get_loss(data_dict, config):
     pred_obb_batch = data_dict['pred_obb_batch']
     batch_size = len(pred_obb_batch)
     cluster_label = []
+    m_cluster_label = []
     box_mask = torch.zeros(batch_size).cuda()
 
     criterion = ContrastiveLoss(margin=0.2, gamma=5)
@@ -171,10 +172,10 @@ def get_loss(data_dict, config):
     bts_candidate_obbs = data_dict["bts_candidate_obbs"]
     scores = data_dict["score"] # B x 8 x 1
     batch_pred_scores = []
-    batch_pred_label = []
     batch_size = bts_candidate_obbs.shape[0]
     label = []
     for ii in range(batch_size):  
+        m_label = np.zeros(MAX_NUM_OBJECT)
         candidate_obbs = bts_candidate_obbs[ii].cpu().numpy() # MAX_NUM_OBJECT x 6
         pred_score = scores[ii].reshape(-1) # MAX_NUM_OBJECT x 1
 
@@ -184,9 +185,13 @@ def get_loss(data_dict, config):
 
         pred_bbox = get_3d_box_batch(candidate_obbs[:, 3:6], np.zeros(MAX_NUM_OBJECT), candidate_obbs[:, 0:3])
         ious = box3d_iou_batch(pred_bbox, np.tile(ref_gt_bbox[ii], (MAX_NUM_OBJECT, 1, 1)))
-        # print('max iou: ', ious.max())
         label.append(ious.argmax())  # MAX_NUM_OBJECT
-        # batch_pred_label.append(label.tolist())
+
+        m_label[ious.argmax()] = 1
+        m_label = torch.FloatTensor(m_label).cuda()
+        m_cluster_label.append(m_label)
+
+
     label = np.array(label)
     class_loss = class_loss + object_loss(scores.reshape(batch_size, 8), torch.from_numpy(label).long().cuda())
 
@@ -232,5 +237,6 @@ def get_loss(data_dict, config):
     data_dict['seg_loss'] = seg_loss
     data_dict['class_loss'] = class_loss
     data_dict['cluster_label'] = cluster_label
+    data_dict['m_cluster_label'] = m_cluster_label
 
     return data_dict
