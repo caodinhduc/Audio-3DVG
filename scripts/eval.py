@@ -17,8 +17,8 @@ from lib.eval_helper import get_eval
 from data.scannet.model_util_scannet import ScannetDatasetConfig
 from models.instancerefer import InstanceRefer
 
-SCANREFER_TRAIN = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_train.json")))
-SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val.json")))
+# SCANREFER_TRAIN = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_train.json")))
+SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val_with_id.json")))[:100]
 
 
 def get_dataloader(args, scanrefer, all_scene_list, split):
@@ -52,7 +52,7 @@ def get_model(args):
     )
 
     print(args.use_checkpoint)
-    path = os.path.join(args.use_checkpoint, "model.pth")
+    path = os.path.join(args.use_checkpoint, "model_last.pth")
     print('checkpoint: ', args)
     model.load_state_dict(torch.load(path))
     model.eval()

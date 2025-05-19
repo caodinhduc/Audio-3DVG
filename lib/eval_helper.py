@@ -41,6 +41,10 @@ def get_eval(data_dict, config):
     ref_gt_obb = config.param2obb_batch(ref_center_label, ref_heading_class_label, ref_heading_residual_label,
                                         ref_size_class_label, ref_size_residual_label)
 
+    # pred_obb_batch # 16, including empty
+    # cluster_labels: binary id of id
+    # ref_gt_obb: B x 7
+
     ious = []
     pred_bboxes = []
     gt_bboxes = []
@@ -72,6 +76,7 @@ def get_eval(data_dict, config):
                 ref_acc.append(0.)
 
             pred_obb = pred_obb_batch[i][cluster_pred]
+            print('hihi')
 
         gt_obb = ref_gt_obb[i]
         pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
