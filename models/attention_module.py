@@ -116,7 +116,6 @@ class AttentionModule(nn.Module):
 
         ###########
         attn = self.attn(final_representation, relation_representation)
-        print(attn.shape)
         ###########
 
 

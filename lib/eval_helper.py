@@ -7,6 +7,7 @@ sys.path.append(os.path.join(os.getcwd(), "lib"))  # HACK add the lib folder
 from utils.box_util import get_3d_box, box3d_iou
 from utils.util import construct_bbox_corners
 
+MAX_NUM_OBJECT = 8
 
 def get_eval(data_dict, config):
     """ Loss functions
@@ -31,6 +32,7 @@ def get_eval(data_dict, config):
 
     pred_obb_batch = data_dict['pred_obb_batch']
     cluster_labels = data_dict['cluster_label']
+    m_cluster_labels = data_dict['m_cluster_label']
 
     ref_center_label = data_dict["ref_center_label"].detach().cpu().numpy()
     ref_heading_class_label = data_dict["ref_heading_class_label"].detach().cpu().numpy()
@@ -51,44 +53,68 @@ def get_eval(data_dict, config):
     bts_candidate_obbs = data_dict["bts_candidate_obbs"]
     scores = data_dict["score"] # B x 8 x 1
     batch_size = bts_candidate_obbs.shape[0]
-    # label = []
+    m_ref_acc = []
+    m_ious = []
+    m_pred_bboxes = []
+    m_gt_bboxes = []
+    m_multiple = []
+    m_others = []
+
     m_num_missed = 0
     for ii in range(batch_size):  
-        m_pred_obb = bts_candidate_obbs[ii]
+        m_pred_obb = bts_candidate_obbs[ii].cpu().numpy()
         m_num_filtered_obj = torch.sum(bts_candidate_mask[ii])
         if m_num_filtered_obj == 0:
-            pred_obb = np.zeros(7)
+            m_pred_obb = np.zeros(7)
             m_num_missed += 1
         elif m_num_filtered_obj == 1:
-            m_pred_obb = m_pred_obb[1]
+            m_pred_obb = m_pred_obb[0]
         else:
             m_score = scores[ii].reshape(-1)
-
-            start_idx += num_filtered_obj
-            cluster_pred = torch.argmax(score, dim=0)
-            target = torch.argmax(cluster_labels[i], dim=0)
-            if target == cluster_pred:
-                ref_acc.append(1.)
+            m_cluster_pred = torch.argmax(m_score, dim=0)
+            m_target = torch.argmax(m_cluster_labels[ii], dim=0)
+            if m_target == m_cluster_pred:
+                m_ref_acc.append(1.)
             else:
-                ref_acc.append(0.)
+                m_ref_acc.append(0.)
+            m_pred_obb = bts_candidate_obbs[ii][m_cluster_pred].cpu().numpy()
 
-            pred_obb = pred_obb_batch[i][cluster_pred]
-            print('hihi')
-    #     candidate_obbs = bts_candidate_obbs[ii].cpu().numpy() # MAX_NUM_OBJECT x 6
-    #     pred_score = scores[ii].reshape(-1) # MAX_NUM_OBJECT x 1
+        m_gt_obb = ref_gt_obb[ii]
+        m_pred_bbox = get_3d_box(m_pred_obb[3:6], 0, m_pred_obb[0:3])
+        m_gt_bbox = get_3d_box(m_gt_obb[3:6], m_gt_obb[6], m_gt_obb[0:3])
+        m_iou = box3d_iou(m_pred_bbox, m_gt_bbox)
+        m_ious.append(m_iou)
 
-    #     # just for eval
-    #     x = pred_score.detach().cpu().numpy()
-    #     batch_pred_scores.append(int(np.argmax(x)))
+        # NOTE: get_3d_box() will return problematic bboxes
+        m_pred_bbox = construct_bbox_corners(m_pred_obb[0:3], m_pred_obb[3:6])
+        m_gt_bbox = construct_bbox_corners(m_gt_obb[0:3], m_gt_obb[3:6])
 
-    #     pred_bbox = get_3d_box_batch(candidate_obbs[:, 3:6], np.zeros(MAX_NUM_OBJECT), candidate_obbs[:, 0:3])
-    #     ious = box3d_iou_batch(pred_bbox, np.tile(ref_gt_bbox[ii], (MAX_NUM_OBJECT, 1, 1)))
-    #     # print('max iou: ', ious.max())
-    #     label.append(ious.argmax())  # MAX_NUM_OBJECT
-    #     # batch_pred_label.append(label.tolist())
-    # label = np.array(label)
-    # class_loss = class_loss + object_loss(scores.reshape(batch_size, 8), torch.from_numpy(label).long().cuda())
+        if m_num_filtered_obj <= 1:
+            if m_iou > 0.25:
+                m_ref_acc.append(1.)
+            else:
+                m_ref_acc.append(0.)
 
+        m_pred_bboxes.append(m_pred_bbox)
+        m_gt_bboxes.append(m_gt_bbox)
+
+        # construct the multiple mask
+        m_multiple.append(data_dict["unique_multiple"][ii].item())
+
+        # construct the others mask
+        flag = 1 if data_dict["object_cat"][ii] == 17 else 0
+        m_others.append(flag)
+
+    data_dict['m_ref_acc'] = m_ref_acc
+    data_dict["m_ref_iou"] = m_ious
+    data_dict["m_ref_iou_rate_0.25"] = np.array(m_ious)[np.array(m_ious) >= 0.25].shape[0] / np.array(m_ious).shape[0]
+    data_dict["m_ref_iou_rate_0.5"] = np.array(m_ious)[np.array(m_ious) >= 0.5].shape[0] / np.array(m_ious).shape[0]
+
+    # data_dict["seg_acc"] = torch.ones(1)[0].cuda()
+    data_dict["m_ref_multiple_mask"] = m_multiple
+    data_dict["m_ref_others_mask"] = m_others
+    data_dict["m_pred_bboxes"] = m_pred_bboxes
+    data_dict["m_gt_bboxes"] = m_gt_bboxes
     # END MY EVAL IMPLEMENTATION
 
 
@@ -123,7 +149,6 @@ def get_eval(data_dict, config):
                 ref_acc.append(0.)
 
             pred_obb = pred_obb_batch[i][cluster_pred]
-            print('hihi')
 
         gt_obb = ref_gt_obb[i]
         pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])

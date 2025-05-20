@@ -18,7 +18,7 @@ from data.scannet.model_util_scannet import ScannetDatasetConfig
 from models.instancerefer import InstanceRefer
 
 # SCANREFER_TRAIN = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_train.json")))
-SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val_with_id.json")))[:100]
+SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val_with_id.json")))[:170]
 
 
 def get_dataloader(args, scanrefer, all_scene_list, split):
@@ -134,11 +134,20 @@ def eval_ref(args):
                     config=DC,
                 )
 
-                ref_acc += data["ref_acc"]
-                ious += data["ref_iou"]
-                masks += data["ref_multiple_mask"] # filter multiple target cases
-                others += data["ref_others_mask"] # filter targe in others class
+                # ref_acc += data["ref_acc"]
+                # ious += data["ref_iou"]
+                # masks += data["ref_multiple_mask"] # filter multiple target cases
+                # others += data["ref_others_mask"] # filter targe in others class
                 lang_acc.append(data["lang_acc"].item())
+
+                #########################
+                # MODIFY FOR MY
+                ref_acc += data["m_ref_acc"]
+                ious += data["m_ref_iou"]
+                masks += data["m_ref_multiple_mask"] # filter multiple target cases
+                others += data["m_ref_others_mask"] # filter targe in others class
+                # lang_acc.append(data["lang_acc"].item())
+                #########################
 
                 # store predictions
                 ids = data["scan_idx"].detach().cpu().numpy()
