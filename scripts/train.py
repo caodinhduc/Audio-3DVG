@@ -200,7 +200,7 @@ def train(args):
 
     # dataloader
     train_dataset, train_dataloader = get_dataloader(args, scanrefer, all_scene_list, "train", shuffle=True)
-    val_dataset, val_dataloader = get_dataloader(args, scanrefer, all_scene_list, "val", shuffle=False)
+    val_dataset, val_dataloader = get_dataloader(args, scanrefer, all_scene_list, "val", shuffle=True)
 
     dataloader = {
         "train": train_dataloader,

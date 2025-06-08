@@ -7,11 +7,13 @@ class AudioModule(nn.Module):
         super(AudioModule, self).__init__()
 
         self.gru = nn.GRU(
-            input_size=1024,
+            input_size=768,
             hidden_size=512,
             batch_first=True,
             bidirectional=True
         )
+        for name, param in self.gru.named_parameters():
+            param.requires_grad = True
     
     def forward(self, data_dict):
         feats = data_dict["audio_feature"] # B x 1 x padd x 1024

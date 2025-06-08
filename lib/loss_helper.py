@@ -180,8 +180,8 @@ def get_loss(data_dict, config):
         pred_score = scores[ii].reshape(-1) # MAX_NUM_OBJECT x 1
 
         # just for eval
-        x = pred_score.detach().cpu().numpy()
-        batch_pred_scores.append(int(np.argmax(x)))
+        # x = pred_score.detach().cpu().numpy()
+        # batch_pred_scores.append(int(np.argmax(x)))
 
         pred_bbox = get_3d_box_batch(candidate_obbs[:, 3:6], np.zeros(MAX_NUM_OBJECT), candidate_obbs[:, 0:3])
         ious = box3d_iou_batch(pred_bbox, np.tile(ref_gt_bbox[ii], (MAX_NUM_OBJECT, 1, 1)))
@@ -193,12 +193,12 @@ def get_loss(data_dict, config):
 
 
     label = np.array(label)
-    class_loss = class_loss + object_loss(scores.reshape(batch_size, 8), torch.from_numpy(label).long().cuda())
+    class_loss = class_loss + object_loss(scores.reshape(batch_size, MAX_NUM_OBJECT), torch.from_numpy(label).long().cuda())
 
 
-    accuracy = np.mean(batch_pred_scores == label)
-    print(f"Accuracy: {accuracy:.2f}")
-    print('target classification loss: ', class_loss)
+    # accuracy = np.mean(batch_pred_scores == label)
+    # print(f"Accuracy: {accuracy:.2f}")
+    # print('target classification loss: ', class_loss)
 
     for i in range(batch_size):
         pred_obb = pred_obb_batch[i]  # (num, 7)
@@ -209,6 +209,7 @@ def get_loss(data_dict, config):
             continue
 
         label = np.zeros(num_filtered_obj)
+        print(pred_obb[:, 6])
         pred_bbox = get_3d_box_batch(pred_obb[:, 3:6], pred_obb[:, 6], pred_obb[:, 0:3])
         ious = box3d_iou_batch(pred_bbox, np.tile(ref_gt_bbox[i], (num_filtered_obj, 1, 1)))
         label[ious.argmax()] = 1  # treat the bbox with highest iou score as the gt
@@ -231,7 +232,7 @@ def get_loss(data_dict, config):
     ref_loss = ref_loss / batch_size
     data_dict['ref_loss'] = ref_loss
 
-    data_dict['loss'] = ref_loss + lang_loss + seg_loss + 10 * class_loss
+    data_dict['loss'] =  class_loss
     data_dict["seg_loss"] = seg_loss
     data_dict['seg_acc'] = seg_acc
     data_dict['seg_loss'] = seg_loss

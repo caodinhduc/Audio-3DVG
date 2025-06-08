@@ -82,20 +82,18 @@ class AttentionModule(nn.Module):
         super().__init__()
 
         # self.fc = nn.Sequential(nn.Linear(2098, 1024),
-        #                     nn.BatchNorm1d(8),
+        #                     # nn.BatchNorm1d(8),
         #                     nn.ReLU(),
         #                     nn.Linear(1024, 128),
         #                     # nn.BatchNorm1d(128),
         #                     nn.ReLU(),
         #                     nn.Linear(128, 1),
         #                     )
-        self.fc = nn.Sequential(nn.Linear(256, 64),
-                    nn.BatchNorm1d(8),
-                    nn.ReLU(),
-                    nn.Linear(64, 16),
+        self.fc = nn.Sequential(
+                    nn.Linear(256, 64),
                     # nn.BatchNorm1d(128),
                     nn.ReLU(),
-                    nn.Linear(16, 1),
+                    nn.Linear(64, 1),
                     )
         self.attn = CombinedAttention(dim_a=2098, dim_b=1074)
         self.MAX_NUM_OBJECT = 8
@@ -107,10 +105,11 @@ class AttentionModule(nn.Module):
         
         # bts_candidate_obbs = data_dict["bts_candidate_obbs"]  # B x 16 x 6
         # bts_relation_obbs = data_dict["bts_relation_obbs"] # B x 16 x 6
-        # bts_candidate_mask = data_dict["bts_candidate_mask"] # B x 16 
+        bts_candidate_mask = data_dict["bts_candidate_mask"] # B x 16 
         # bts_relation_mask = data_dict["bts_relation_mask"] # B x 16
 
         repeated_bts_audio = bts_audio_feature.repeat(1, self.MAX_NUM_OBJECT, 1)
+        repeated_bts_audio = repeated_bts_audio * bts_candidate_mask.unsqueeze(-1)
         final_representation = torch.cat((target_representation, repeated_bts_audio), dim=2)
 
 

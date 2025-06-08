@@ -18,7 +18,7 @@ from data.scannet.model_util_scannet import ScannetDatasetConfig
 from models.instancerefer import InstanceRefer
 
 # SCANREFER_TRAIN = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_train.json")))
-SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val_with_id.json")))[:170]
+SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val_with_id.json")))
 
 
 def get_dataloader(args, scanrefer, all_scene_list, split):
@@ -32,7 +32,7 @@ def get_dataloader(args, scanrefer, all_scene_list, split):
     dataloader = DataLoader(
         dataset,
         batch_size=args.batch_size,
-        shuffle=False,
+        shuffle=True,
         num_workers=args.num_workers,
         pin_memory=True,
         collate_fn=dataset.collate_fn
@@ -52,7 +52,7 @@ def get_model(args):
     )
 
     print(args.use_checkpoint)
-    path = os.path.join(args.use_checkpoint, "model_last.pth")
+    path = os.path.join(args.use_checkpoint, "model.pth")
     print('checkpoint: ', args)
     model.load_state_dict(torch.load(path))
     model.eval()

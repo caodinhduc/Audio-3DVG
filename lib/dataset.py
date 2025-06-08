@@ -56,10 +56,10 @@ class ScannetReferenceDataset(Dataset):
         self.augment = args.use_augment if split == "train" else False
 
         if split == 'train':
-            self.audio_path = 'data/contextual_data_train'
+            self.audio_path = 'data/contextual_train'
             self.nel_path = 'data/data_train.csv'
         else:
-            self.audio_path = 'data/contextual_data_val'
+            self.audio_path = 'data/contextual_val'
             self.nel_path = 'data/data_val.csv'
 
         self.audio_class, self.nel_label = self._load_nel_label()
@@ -86,10 +86,10 @@ class ScannetReferenceDataset(Dataset):
 
         # load voice feature
         audio_id = self.scanrefer[idx]['id']
-        audio_feature = torch.load(os.path.join(self.audio_path, "{}.pt".format(audio_id)))
+        audio_feature = torch.load(os.path.join(self.audio_path, "{}.pt".format(audio_id))).unsqueeze(0)
         audio_length = audio_feature.shape[1]
         if audio_length < MAX_AUDIO_FRAME:
-            padd_feature = torch.zeros((1, 3000 - audio_length, 1024))
+            padd_feature = torch.zeros((1, 3000 - audio_length, 768))
             audio_feature = torch.cat((audio_feature, padd_feature), dim=1)
 
         # load classification and NEL label

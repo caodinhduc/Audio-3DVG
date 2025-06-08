@@ -52,6 +52,7 @@ def get_eval(data_dict, config):
     bts_candidate_mask = data_dict['bts_candidate_mask']
     bts_candidate_obbs = data_dict["bts_candidate_obbs"]
     scores = data_dict["score"] # B x 8 x 1
+    scores = scores * bts_candidate_mask.unsqueeze(-1)
     batch_size = bts_candidate_obbs.shape[0]
     m_ref_acc = []
     m_ious = []
