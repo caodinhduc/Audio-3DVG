@@ -116,8 +116,6 @@ class AttentionModule(nn.Module):
         ###########
         attn = self.attn(final_representation, relation_representation)
         ###########
-
-
         scores = self.fc(attn)
         data_dict['score'] = scores
         # concatenate

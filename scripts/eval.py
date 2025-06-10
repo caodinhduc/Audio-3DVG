@@ -103,7 +103,6 @@ def eval_ref(args):
         ious_all = []
         masks_all = []
         others_all = []
-        lang_acc_all = []
         for seed in seeds:
             # reproducibility
             torch.manual_seed(seed)
@@ -116,11 +115,10 @@ def eval_ref(args):
             ious = []
             masks = []
             others = []
-            lang_acc = []
             predictions = {}
             for data in tqdm(dataloader):
                 for key in data:
-                    if key in ['lang_feat', 'object_cat', 'lidar', 'point_min', 'point_max', 'mlm_label',
+                    if key in ['object_cat', 'lidar', 'point_min', 'point_max', 'mlm_label',
                                'ref_center_label', 'ref_size_residual_label']:
                     # if key in ['lang_feat', 'lang_len', 'object_cat', 'lidar', 'point_min', 'point_max', 'mlm_label',
                     #            'ref_center_label', 'ref_size_residual_label']:
@@ -138,7 +136,6 @@ def eval_ref(args):
                 # ious += data["ref_iou"]
                 # masks += data["ref_multiple_mask"] # filter multiple target cases
                 # others += data["ref_others_mask"] # filter targe in others class
-                lang_acc.append(data["lang_acc"].item())
 
                 #########################
                 # MODIFY FOR MY
@@ -179,14 +176,13 @@ def eval_ref(args):
             ious_all.append(ious)
             masks_all.append(masks)
             others_all.append(others)
-            lang_acc_all.append(lang_acc)
 
         # convert to numpy array
         ref_acc = np.array(ref_acc_all)
         ious = np.array(ious_all)
         masks = np.array(masks_all)
         others = np.array(others_all)
-        lang_acc = np.array(lang_acc_all)
+
 
         # save the global scores
         with open(score_path, "wb") as f:
@@ -195,7 +191,6 @@ def eval_ref(args):
                 "ious": ious_all,
                 "masks": masks_all,
                 "others": others_all,
-                "lang_acc": lang_acc_all
             }
             pickle.dump(scores, f)
 
@@ -209,7 +204,6 @@ def eval_ref(args):
             ious = np.array(scores["ious"])
             masks = np.array(scores["masks"])
             others = np.array(scores["others"])
-            lang_acc = np.array(scores["lang_acc"])
 
     multiple_dict = {
         "unique": 0,
@@ -343,8 +337,6 @@ def eval_ref(args):
         for k_m in scores[k_s].keys():
             for metric in scores[k_s][k_m].keys():
                 print("{} | {} | {}: {:.4f}".format(k_s, k_m, metric, scores[k_s][k_m][metric]))
-
-    print("\nlanguage classification accuracy: {:.4f}".format(np.mean(lang_acc)))
 
 
 if __name__ == "__main__":

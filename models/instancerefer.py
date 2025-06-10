@@ -20,9 +20,9 @@ class InstanceRefer(nn.Module):
         module = importlib.import_module(args.audio_module)
         self.audio = module.AudioModule()
 
-        # --------- LANGUAGE ENCODING ---------
-        module = importlib.import_module(args.language_module)
-        self.lang = module.LangModule(args.num_classes, True, args.use_bidir, 300, 128)
+        # # --------- LANGUAGE ENCODING ---------
+        # module = importlib.import_module(args.language_module)
+        # self.lang = module.LangModule(args.num_classes, True, args.use_bidir, 300, 128)
 
 
         # --------- FEATURE ENCODING ---------
@@ -32,18 +32,18 @@ class InstanceRefer(nn.Module):
         module = importlib.import_module(args.attention_module)
         self.attention = module.AttentionModule()
 
-        # --------- INSTANCE ENCODING ---------
-        if args.attribute_module:
-            module = importlib.import_module(args.attribute_module)
-            self.attribute = module.AttributeModule(input_feature_dim, args)
+        # # --------- INSTANCE ENCODING ---------
+        # if args.attribute_module:
+        #     module = importlib.import_module(args.attribute_module)
+        #     self.attribute = module.AttributeModule(input_feature_dim, args)
 
-        if args.relation_module:
-            module = importlib.import_module(args.relation_module)
-            self.relation = module.RelationModule(input_feature_dim, args)
+        # if args.relation_module:
+        #     module = importlib.import_module(args.relation_module)
+        #     self.relation = module.RelationModule(input_feature_dim, args)
 
-        if args.scene_module:
-            module = importlib.import_module(args.scene_module)
-            self.scene = module.SceneModule(input_feature_dim, args)
+        # if args.scene_module:
+        #     module = importlib.import_module(args.scene_module)
+        #     self.scene = module.SceneModule(input_feature_dim, args)
 
 
     def forward(self, data_dict):
@@ -68,22 +68,22 @@ class InstanceRefer(nn.Module):
         data_dict = self.audio(data_dict) # B x 1 x 1024
 
         ### language module
-        data_dict = self.lang(data_dict)
+        # data_dict = self.lang(data_dict)
         ### feature module
         data_dict = self.feature(data_dict)
         ### attention module
         data_dict = self.attention(data_dict)
 
-        ### attribute module
-        if self.args.attribute_module:
-            data_dict = self.attribute(data_dict)
+        # ### attribute module
+        # if self.args.attribute_module:
+        #     data_dict = self.attribute(data_dict)
 
-        ### relation module
-        if self.args.relation_module:
-            data_dict = self.relation(data_dict)
+        # ### relation module
+        # if self.args.relation_module:
+        #     data_dict = self.relation(data_dict)
 
-        ### scene module
-        if self.args.scene_module:
-            data_dict = self.scene(data_dict)
+        # ### scene module
+        # if self.args.scene_module:
+        #     data_dict = self.scene(data_dict)
 
         return data_dict
