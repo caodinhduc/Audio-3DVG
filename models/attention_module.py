@@ -95,7 +95,7 @@ class AttentionModule(nn.Module):
                     nn.ReLU(),
                     nn.Linear(64, 1),
                     )
-        self.attn = CombinedAttention(dim_a=2098, dim_b=1074)
+        self.attn = CombinedAttention(dim_a=1586, dim_b=562)
         self.MAX_NUM_OBJECT = 8
     def forward(self, data_dict):
         

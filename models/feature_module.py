@@ -4,12 +4,13 @@ import json
 import ast
 import numpy as np
 from models.obj_encoder import PcdObjEncoder
-
+from omegaconf import OmegaConf
+config = OmegaConf.load("config/InstanceRefer.yaml")
 
 class FeatureModule(nn.Module):
     def __init__(self):
         super().__init__()
-        self.object_encoder = PcdObjEncoder()
+        self.object_encoder = PcdObjEncoder(config.obj_encoder)
         with open("label2vect.json", "r") as f:
             self.text_encoder = json.load(f)
         self.MAX_NUM_OBJECT = 8

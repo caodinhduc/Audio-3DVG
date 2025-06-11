@@ -32,20 +32,17 @@ from models.backbone.point_net_pp import PointNetPP
 #         return obj_embeds
 
 class PcdObjEncoder(nn.Module):
-    def __init__(self):
+    def __init__(self, config):
         super().__init__()
-        self.sa_n_points =  [32, 16, None]
-        self.sa_n_samples = [32, 32, None]
-        self.sa_radii = [0.2, 0.4, None]
-        self.sa_mlps = [[3, 64, 64, 128], [128, 128, 128, 256], [256, 256, 512, 768]]
+        self.config = config
 
         self.pcd_net = PointNetPP(
-            sa_n_points=self.sa_n_points,
-            sa_n_samples=self.sa_n_samples,
-            sa_radii=self.sa_radii,
-            sa_mlps=self.sa_mlps,
+            sa_n_points=config.sa_n_points,
+            sa_n_samples=config.sa_n_samples,
+            sa_radii=config.sa_radii,
+            sa_mlps=config.sa_mlps,
         )
-        self.dropout = nn.Dropout(0.1)
+        self.dropout = nn.Dropout(config.dropout)
 
     def forward(self, obj_pcds):
         batch_size, num_objs, _, _ = obj_pcds.size()
