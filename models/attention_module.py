@@ -6,117 +6,165 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class CombinedAttention(nn.Module):
-    def __init__(self, dim_a, dim_b, latent_dim=256, heads=8):
-        super().__init__()
-        self.latent_dim = latent_dim
-        self.heads = heads
-        self.scale = (latent_dim // heads) ** -0.5
+class LanguageConditionedCrossAttention(nn.Module):
+    def __init__(self, obj_dim, lang_dim, hidden_dim, num_heads=4):
+        super(LanguageConditionedCrossAttention, self).__init__()
+        self.obj_dim = obj_dim
+        self.lang_dim = lang_dim
+        self.hidden_dim = hidden_dim
+        self.num_heads = num_heads
+        self.head_dim = hidden_dim // num_heads
 
-        self.to_q_aa = nn.Linear(dim_a, latent_dim)
-        self.to_k_aa = nn.Linear(dim_a, latent_dim)
-        
-        self.to_v_a = nn.Linear(dim_a, latent_dim)
+        assert self.hidden_dim % num_heads == 0, "hidden_dim must be divisible by num_heads"
 
-        self.to_k_ab = nn.Linear(dim_a, latent_dim)
-        self.to_q_bb = nn.Linear(dim_b, latent_dim)
+        # Object projections
+        self.q_proj = nn.Linear(obj_dim, hidden_dim)
+        self.k_proj = nn.Linear(obj_dim, hidden_dim)
+        self.v_proj = nn.Linear(obj_dim, hidden_dim)
 
-        self.out = nn.Linear(latent_dim, latent_dim)
+        # Language-conditioned bias terms
+        self.q_lang_proj = nn.Linear(lang_dim, hidden_dim)
+        self.k_lang_proj = nn.Linear(lang_dim, hidden_dim)
+        self.v_lang_proj = nn.Linear(lang_dim, hidden_dim)
 
-    def forward(self, A, B):
-        Bsz, N, _ = B.shape
-        H = self.heads
-        d_head = self.latent_dim // H
+        # Output projection
+        self.out_proj = nn.Linear(hidden_dim, obj_dim)
 
-        # Linear projections
-        V = self.to_v_a(A)
-        Q_self = self.to_q_aa(A)  # [B, N, D]
-        K_self = self.to_k_aa(A)
-        
+    def forward(self, obj_feats, lang_embed):
+        """
+        obj_feats: (B, N, D)       - object features (batch, num_objects, obj_dim)
+        lang_embed: (B, L)         - sentence embedding (batch, lang_dim)
+        """
+        B, N, _ = obj_feats.shape
 
-        Q_cross = self.to_k_ab(A)  # Cross-attention
-        K_cross = self.to_q_bb(B)
+        # Project language to same dim as hidden_dim
+        q_lang = self.q_lang_proj(lang_embed).unsqueeze(1)  # (B, 1, H)
+        k_lang = self.k_lang_proj(lang_embed).unsqueeze(1)
+        v_lang = self.v_lang_proj(lang_embed).unsqueeze(1)
+
+        # Project objects
+        Q = self.q_proj(obj_feats) + q_lang   # (B, N, H)
+        K = self.k_proj(obj_feats) + k_lang
+        V = self.v_proj(obj_feats) + v_lang
 
         # Reshape for multi-head attention
-        def split_heads(x):  # [B, seq, D] -> [B, H, seq, d_head]
-            return x.view(Bsz, -1, H, d_head).transpose(1, 2)
+        def reshape(x):
+            return x.view(B, N, self.num_heads, self.head_dim).transpose(1, 2)
+            # (B, num_heads, N, head_dim)
 
-        V = split_heads(V)
-        Q_self = split_heads(Q_self)
-        K_self = split_heads(K_self)
-        Q_cross = split_heads(Q_cross)
-        K_cross = split_heads(K_cross)
+        Q = reshape(Q)
+        K = reshape(K)
+        V = reshape(V)
 
-        # Attention scores
-        attn_self = torch.matmul(Q_self, K_self.transpose(-2, -1)) * self.scale  # [B, H, N, N]
-        attn_cross = torch.matmul(Q_cross, K_cross.transpose(-2, -1)) * self.scale  # [B, H, N, N]
+        # Scaled dot-product attention
+        attn_logits = torch.matmul(Q, K.transpose(-2, -1)) / (self.head_dim ** 0.5)  # (B, heads, N, N)
+        attn_weights = F.softmax(attn_logits, dim=-1)  # (B, heads, N, N)
 
-        # Pad attn_cross to shape [B, H, N, N] if needed
-        # if M != N:
-        #     diff = N - M
-        #     pad = (0, diff)  # pad last dim
-        #     attn_cross = F.pad(attn_cross, pad, "constant", 0)
+        attended = torch.matmul(attn_weights, V)  # (B, heads, N, head_dim)
 
-        # Final attention: element-wise sum
-        attn = attn_self + attn_cross
+        # Combine heads
+        attended = attended.transpose(1, 2).contiguous().view(B, N, self.hidden_dim)  # (B, N, H)
 
-        # Softmax
-        attn = F.softmax(attn, dim=-1)
-        # print(attn.shape)
+        # Project back to object feature dim
+        out = self.out_proj(attended)  # (B, N, obj_dim)
 
-        # Again pad V_cross if needed
-        # if M != N:
-        #     V_cross = F.pad(V_cross, (0, 0, 0, diff), "constant", 0)
+        return out  # language-modulated object features
 
-        # Combine values
-        out_attn = torch.matmul(attn, V)  # [B, H, N, d_head]
+
+class TargetToRelationalCrossAttention(nn.Module):
+    def __init__(self, target_dim, relational_dim, lang_dim, hidden_dim, num_heads=4):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.num_heads = num_heads
+        self.head_dim = hidden_dim // num_heads
+        assert hidden_dim % num_heads == 0
+
+        # Projections
+        self.q_proj = nn.Linear(target_dim, hidden_dim)
+        self.k_proj = nn.Linear(relational_dim, hidden_dim)
+        self.v_proj = nn.Linear(relational_dim, hidden_dim)
+
+        # Language modulation
+        self.q_lang_proj = nn.Linear(lang_dim, hidden_dim)
+        self.k_lang_proj = nn.Linear(lang_dim, hidden_dim)
+        self.v_lang_proj = nn.Linear(lang_dim, hidden_dim)
+
+        self.out_proj = nn.Linear(hidden_dim, target_dim)
+
+    def forward(self, targets, relationals, lang_feat):
+        """
+        targets:     (B, N, d_t) — N target candidate features
+        relationals: (B, N, d_r) — N relational object features
+        lang_feat:   (B, d_l)    — language sentence embedding
+        Returns:
+            updated_targets: (B, N, d_t)
+        """
+        B, N, _ = targets.shape
+
+        # Project language
+        q_lang = self.q_lang_proj(lang_feat).unsqueeze(1)  # (B, 1, H)
+        k_lang = self.k_lang_proj(lang_feat).unsqueeze(1)
+        v_lang = self.v_lang_proj(lang_feat).unsqueeze(1)
+
+        # Project inputs
+        Q = self.q_proj(targets) + q_lang  # (B, N, H)
+        K = self.k_proj(relationals) + k_lang
+        V = self.v_proj(relationals) + v_lang
+
+        # Reshape for multi-head
+        def reshape(x):
+            return x.view(B, N, self.num_heads, self.head_dim).transpose(1, 2)
+
+        Q = reshape(Q)  # (B, heads, N, head_dim)
+        K = reshape(K)
+        V = reshape(V)
+
+        # Attention: Q from targets, K/V from relational objects
+        attn_logits = torch.matmul(Q, K.transpose(-2, -1)) / (self.head_dim ** 0.5)  # (B, heads, N, N)
+        attn_weights = F.softmax(attn_logits, dim=-1)
+        attended = torch.matmul(attn_weights, V)  # (B, heads, N, head_dim)
 
         # Merge heads
-        out = out_attn.transpose(1, 2).contiguous().view(Bsz, N, self.latent_dim)
+        attended = attended.transpose(1, 2).contiguous().view(B, N, self.hidden_dim)  # (B, N, H)
 
-        return self.out(out)  # Final projection
+        # Final projection
+        updated_targets = self.out_proj(attended)  # (B, N, d_t)
+
+        return updated_targets
 
 
 class AttentionModule(nn.Module):
     def __init__(self):
         super().__init__()
 
-        # self.fc = nn.Sequential(nn.Linear(2098, 1024),
-        #                     # nn.BatchNorm1d(8),
-        #                     nn.ReLU(),
-        #                     nn.Linear(1024, 128),
-        #                     # nn.BatchNorm1d(128),
-        #                     nn.ReLU(),
-        #                     nn.Linear(128, 1),
-        #                     )
         self.fc = nn.Sequential(
-                    nn.Linear(256, 64),
-                    # nn.BatchNorm1d(128),
+                    nn.Linear(512, 64),
                     nn.ReLU(),
                     nn.Linear(64, 1),
                     )
-        self.attn = CombinedAttention(dim_a=1586, dim_b=562)
-        self.MAX_NUM_OBJECT = 8
+        self.target_projector = nn.Sequential(
+                    nn.Linear(562, 512)
+                    )
+        
+        self.relation_projector = nn.Sequential(
+                    nn.Linear(562, 512)
+                    )
+        self.attn_layer = LanguageConditionedCrossAttention(obj_dim=512, lang_dim=1024, hidden_dim=512)
+        self.cross_attn = TargetToRelationalCrossAttention(512, 512, 1024, hidden_dim=512)
     def forward(self, data_dict):
         
         target_representation = data_dict["target_representation"] # B x 16 x 1074
         relation_representation = data_dict["relation_representation"] # B x 16 x 1074
-        bts_audio_feature = data_dict["bts_audio_feature"] # B x 1 x 1024
-        
-        # bts_candidate_obbs = data_dict["bts_candidate_obbs"]  # B x 16 x 6
-        # bts_relation_obbs = data_dict["bts_relation_obbs"] # B x 16 x 6
-        bts_candidate_mask = data_dict["bts_candidate_mask"] # B x 16 
-        # bts_relation_mask = data_dict["bts_relation_mask"] # B x 16
+        bts_audio_feature = data_dict["bts_audio_feature"].squeeze(1) # B x 758
 
-        repeated_bts_audio = bts_audio_feature.repeat(1, self.MAX_NUM_OBJECT, 1)
-        repeated_bts_audio = repeated_bts_audio * bts_candidate_mask.unsqueeze(-1)
-        final_representation = torch.cat((target_representation, repeated_bts_audio), dim=2)
+        target_representation = self.target_projector(target_representation)
+        relation_representation = self.target_projector(relation_representation)
+        # bts_candidate_mask = data_dict["bts_candidate_mask"] # B x 16 
 
+        attns = self.attn_layer(target_representation, bts_audio_feature)
+        cross_attns = self.cross_attn(target_representation, relation_representation, bts_audio_feature)
 
-        ###########
-        attn = self.attn(final_representation, relation_representation)
-        ###########
-        scores = self.fc(attn)
+        scores = self.fc(target_representation + attns + cross_attns)
         data_dict['score'] = scores
         # concatenate
         return data_dict
