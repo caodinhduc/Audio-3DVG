@@ -52,7 +52,6 @@ class FeatureModule(nn.Module):
             audio_class = data_dict['audio_class'][i]
             nel_label = data_dict['nel_label'][i]
             nel_label = ast.literal_eval(nel_label)
-
             for idx, i_class in enumerate(instance_class):
                 # i_class = str(i_class)
                 if i_class in nel_label:

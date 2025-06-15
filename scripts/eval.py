@@ -52,7 +52,7 @@ def get_model(args):
     )
 
     print(args.use_checkpoint)
-    path = os.path.join(args.use_checkpoint, "model.pth")
+    path = os.path.join(args.use_checkpoint, "best_model.pth")
     print('checkpoint: ', args)
     model.load_state_dict(torch.load(path))
     model.eval()
@@ -85,7 +85,7 @@ def eval_ref(args):
     scanrefer, scene_list = get_scanrefer()
 
     # dataloader
-    _, dataloader = get_dataloader(args, scanrefer, scene_list, "val")
+    _, dataloader = get_dataloader(args, scanrefer, scene_list, "val")[:100]
 
     # model
     model = get_model(args)

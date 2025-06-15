@@ -305,7 +305,7 @@ class Solver():
                 # save model
                 self._log("saving best models...\n")
                 model_root = os.path.join(CONF.PATH.OUTPUT, self.stamp)
-                torch.save(self.model.state_dict(), os.path.join(model_root, "model.pth"))
+                torch.save(self.model.state_dict(), os.path.join(model_root, "best_model.pth"))
 
     def _dump_log(self, phase):
         log = {

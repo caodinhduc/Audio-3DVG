@@ -37,8 +37,8 @@ class TargetClassificationLoss(nn.Module):
         super(TargetClassificationLoss, self).__init__()
         self.criterion = torch.nn.CrossEntropyLoss()
 
-    def forward(self, gt, pred):
-        return self.criterion(gt, pred)
+    def forward(self, pred, gt):
+        return self.criterion(pred, gt)
 
 
 # class SegLoss(nn.Module):
@@ -167,33 +167,42 @@ def get_loss(data_dict, config):
     # LOSS FOR MY IMPLEMENTATION
     ref_loss = torch.zeros(1).cuda().requires_grad_(True)
     bts_candidate_obbs = data_dict["bts_candidate_obbs"]
+    bts_candidate_mask = data_dict["bts_candidate_mask"]
     scores = data_dict["score"] # B x 8 x 1
     batch_pred_scores = []
     batch_size = bts_candidate_obbs.shape[0]
     label = []
     for ii in range(batch_size):  
-        m_label = np.zeros(MAX_NUM_OBJECT)
-        candidate_obbs = bts_candidate_obbs[ii].cpu().numpy() # MAX_NUM_OBJECT x 6
-        pred_score = scores[ii].reshape(-1) # MAX_NUM_OBJECT x 1
-
+        m_num_filtered_obj = torch.sum(bts_candidate_mask[ii])
+        if m_num_filtered_obj == 0:
+            m_cluster_label.append([])
+            continue
+        m_label = np.zeros(m_num_filtered_obj)
+        candidate_obbs = bts_candidate_obbs[ii, :m_num_filtered_obj].cpu().numpy() # m_num_filtered_obj x 6
+        score = scores[ii, :m_num_filtered_obj]        # pred_score = scores[ii].reshape(-1) # MAX_NUM_OBJECT x 1
+        # pred_score = pred_score * candidate_mask
         # just for eval
-        x = pred_score.detach().cpu().numpy()
-        batch_pred_scores.append(int(np.argmax(x)))
+        # x = pred_score.detach().cpu().numpy()
+        # batch_pred_scores.append(int(np.argmax(x)))
 
-        pred_bbox = get_3d_box_batch(candidate_obbs[:, 3:6], np.zeros(MAX_NUM_OBJECT), candidate_obbs[:, 0:3])
-        ious = box3d_iou_batch(pred_bbox, np.tile(ref_gt_bbox[ii], (MAX_NUM_OBJECT, 1, 1)))
-        label.append(ious.argmax())  # MAX_NUM_OBJECT
+        pred_bbox = get_3d_box_batch(candidate_obbs[:, 3:6], np.zeros(m_num_filtered_obj), candidate_obbs[:, 0:3])
+        ious = box3d_iou_batch(pred_bbox, np.tile(ref_gt_bbox[ii], (m_num_filtered_obj.cpu(), 1, 1)))
+        label = ious.argmax()
+        label = np.array(label).reshape(1,)
+        label = torch.from_numpy(label).long().cuda()
+        score = score.reshape(1, m_num_filtered_obj)
+        ref_loss = ref_loss + object_loss(score, label)
 
         m_label[ious.argmax()] = 1
         m_label = torch.FloatTensor(m_label).cuda()
         m_cluster_label.append(m_label)
 
 
-    label = np.array(label)
-    ref_loss = ref_loss + object_loss(scores.reshape(batch_size, MAX_NUM_OBJECT), torch.from_numpy(label).long().cuda())
+    
+    
 
 
-    accuracy = np.mean(batch_pred_scores == label)
+    # accuracy = np.mean(batch_pred_scores == label)
     # print(f"Accuracy: {accuracy:.2f}")
     # print('target classification loss: ', class_loss)
 
@@ -228,7 +237,7 @@ def get_loss(data_dict, config):
 
     ref_loss = ref_loss / batch_size
     data_dict['ref_loss'] = ref_loss
-    data_dict['ref_acc'] = accuracy
+    data_dict['ref_acc'] = 1
 
     data_dict['loss'] =  ref_loss
     data_dict['cluster_label'] = m_cluster_label

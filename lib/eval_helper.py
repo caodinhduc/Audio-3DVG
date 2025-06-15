@@ -2,12 +2,56 @@ import os
 import sys
 import torch
 import numpy as np
+import open3d as o3d
 
 sys.path.append(os.path.join(os.getcwd(), "lib"))  # HACK add the lib folder
 from utils.box_util import get_3d_box, box3d_iou
 from utils.util import construct_bbox_corners
 
 MAX_NUM_OBJECT = 8
+
+def voxelize_box(box: o3d.geometry.OrientedBoundingBox, voxel_size: float):
+    # Sample points inside the box by creating a dense 3D grid
+    extent = box.extent
+    num_x = int(extent[0] / voxel_size)
+    num_y = int(extent[1] / voxel_size)
+    num_z = int(extent[2] / voxel_size)
+
+    x = np.linspace(-extent[0] / 2, extent[0] / 2, num_x)
+    y = np.linspace(-extent[1] / 2, extent[1] / 2, num_y)
+    z = np.linspace(-extent[2] / 2, extent[2] / 2, num_z)
+    xv, yv, zv = np.meshgrid(x, y, z, indexing='ij')
+    grid = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
+
+    # Transform local box points to world coordinates
+    points = (box.R @ grid.T).T + box.center
+    voxel_coords = np.floor(points / voxel_size).astype(int)
+
+    return set(map(tuple, voxel_coords))
+
+def compute_iou_3d(box1, box2, voxel_size=0.01):
+    voxels1 = voxelize_box(box1, voxel_size)
+    voxels2 = voxelize_box(box2, voxel_size)
+
+    intersection = voxels1 & voxels2
+    union = voxels1 | voxels2
+
+    if not union:
+        return 0.0
+    return len(intersection) / len(union)
+
+# Create two oriented bounding boxes
+# center1 = [0.0, 0.0, 0.0]
+# extent1 = [1.0, 2.0, 1.0]
+# R = np.eye(3)
+# box1 = o3d.geometry.OrientedBoundingBox(center=center1, R=R, extent=extent1)
+
+# center2 = [0, 0.0, 0.0]
+# extent2 = [1.0, 2.0, 1.0]
+# box2 = o3d.geometry.OrientedBoundingBox(center=center2, R=R, extent=extent2)
+
+# # Compute IoU
+# iou = compute_iou_3d(box1, box2, voxel_size=0.02)
 
 def get_eval(data_dict, config):
     """ Loss functions
@@ -63,17 +107,43 @@ def get_eval(data_dict, config):
 
 
     m_num_missed = 0
-    for ii in range(batch_size):  
+    for ii in range(batch_size): 
         m_pred_obb = bts_candidate_obbs[ii].cpu().numpy()
         m_num_filtered_obj = torch.sum(bts_candidate_mask[ii])
+
+        # VISUALIZATION
+        # m_gt_obb = ref_gt_obb[ii]
+        # geometries = []
+        # # geometries.append(o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.5))
+        # for i in m_pred_obb:
+        #     # geometries.append(i[:6].tolist())
+        #     obb = o3d.geometry.OrientedBoundingBox()
+        #     obb.center = i[:3]
+        #     obb.extent = i[3:6]
+        #     obb.color = [1, 0, 0]
+        #     geometries.append(obb)
+        # obb = o3d.geometry.OrientedBoundingBox()
+        # obb.center = m_gt_obb[:3]
+        # obb.extent = m_gt_obb[3:6]
+        # obb.color = [0, 1, 0]
+        # geometries.append(obb)
+        # o3d.visualization.draw_geometries(geometries)
+
+
         if m_num_filtered_obj == 0:
             m_pred_obb = np.zeros(7)
             m_num_missed += 1
         elif m_num_filtered_obj == 1:
             m_pred_obb = m_pred_obb[0]
+            
+            # m_gt_obb = ref_gt_obb[ii]
+            # m_pred_bbox = get_3d_box(m_pred_obb[3:6], 0, m_pred_obb[0:3])
+            # m_gt_bbox = get_3d_box(m_gt_obb[3:6], m_gt_obb[6], m_gt_obb[0:3])
+            # m_iou = box3d_iou(m_gt_bbox, m_pred_bbox)
+            # print(m_iou)
         else:
             m_score = scores[ii].reshape(-1)
-            m_cluster_pred = torch.argmax(m_score, dim=0)
+            m_cluster_pred = torch.argmax(m_score[:m_num_filtered_obj], dim=0)
             m_target = torch.argmax(m_cluster_labels[ii], dim=0)
             if m_target == m_cluster_pred:
                 m_ref_acc.append(1.)
@@ -84,7 +154,18 @@ def get_eval(data_dict, config):
         m_gt_obb = ref_gt_obb[ii]
         m_pred_bbox = get_3d_box(m_pred_obb[3:6], 0, m_pred_obb[0:3])
         m_gt_bbox = get_3d_box(m_gt_obb[3:6], m_gt_obb[6], m_gt_obb[0:3])
-        m_iou = box3d_iou(m_pred_bbox, m_gt_bbox)
+        m_iou = box3d_iou(m_gt_bbox, m_pred_bbox)
+        # Create two oriented bounding boxes
+        # center1 = m_pred_obb[:3]
+        # extent1 = m_pred_obb[3:6]
+        # R = np.eye(3)
+        # box1 = o3d.geometry.OrientedBoundingBox(center=center1, R=R, extent=extent1)
+        # center2 = m_gt_obb[:3].tolist()
+        # extent2 = m_gt_obb[3:6].tolist()
+        # box2 = o3d.geometry.OrientedBoundingBox(center=center2, R=R, extent=extent2)
+
+        # # Compute IoU
+        # m_iou = compute_iou_3d(box1, box2, voxel_size=0.02)
         m_ious.append(m_iou)
 
         # NOTE: get_3d_box() will return problematic bboxes

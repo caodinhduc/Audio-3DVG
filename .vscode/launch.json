@@ -9,7 +9,7 @@
             "name": "Python Debugger: Python File",
             "type": "debugpy",
             "request": "launch",
-            "module": "scripts.train"
+            "module": "scripts.eval"
         }
     ]
 }

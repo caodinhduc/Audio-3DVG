@@ -23,6 +23,7 @@ from torchsparse.utils import sparse_collate_fn, sparse_quantize
 
 # data setting
 DC = ScannetDatasetConfig()
+print(DC.nyu40id2class)
 MAX_NUM_OBJ = 128
 MAX_AUDIO_FRAME = 3000
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
@@ -223,6 +224,7 @@ class ScannetReferenceDataset(Dataset):
 
             # construct the reference target label for each bbox
             ref_box_label = np.zeros(MAX_NUM_OBJ)
+            
             for i, gt_id in enumerate(instance_bboxes[:num_bbox, -1]): # -1 mean id of object in scene, equal to objecid
                 if gt_id == object_id:
                     ref_box_label[i] = 1

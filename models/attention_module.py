@@ -138,9 +138,7 @@ class AttentionModule(nn.Module):
         super().__init__()
 
         self.fc = nn.Sequential(
-                    nn.Linear(512, 64),
-                    nn.ReLU(),
-                    nn.Linear(64, 1),
+                    nn.Linear(512, 1)
                     )
         self.target_projector = nn.Sequential(
                     nn.Linear(562, 512)
