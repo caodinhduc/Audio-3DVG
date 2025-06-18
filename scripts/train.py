@@ -17,7 +17,7 @@ from lib.solver import Solver
 from lib.config import CONF
 from models.instancerefer import InstanceRefer
 
-SCANREFER_TRAIN = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val_with_id.json")))
+SCANREFER_TRAIN = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_train_with_id.json")))
 SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val_with_id.json")))
 
 # constants

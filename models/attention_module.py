@@ -2,9 +2,51 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import MinkowskiEngine as ME
+
+
+class MinkowskiPointNet(nn.Module):
+    def __init__(self, in_channels=3, out_channels=128):
+        super().__init__()
+        self.projector = ME.MinkowskiLinear(in_channels, out_channels)
+        self.pool = ME.MinkowskiGlobalAvgPooling()
+
+    def forward(self, coords, feats):
+        # coords: (N, 4), feats: (N, C)
+        x = ME.SparseTensor(features=feats, coordinates=coords)
+        x = self.projector(x)
+        x = self.pool(x)  # Outputs a SparseTensor with shape (B, out_channels)
+        return x.F  # Return dense feature: (B, out_channels)
+
+def prepare_sparse_tensor(batch_points, voxel_size=0.05):
+    """
+    batch_points: Tensor of shape (B, N, 6)
+    Returns:
+        coords: (B*N', 4) [batch_idx, x, y, z]
+        feats:  (B*N', C)
+    """
+    B, N, _ = batch_points.shape
+    all_coords = []
+    all_feats = []
+    
+    for b in range(B):
+        pc = batch_points[b]  # (N, 6)
+        xyz = pc[:, :3]
+        feat = pc[:, 3:]
+
+        # Voxelize coordinates
+        coords = torch.floor(xyz / voxel_size).int()
+        batch_idx = torch.full((coords.shape[0], 1), b, dtype=torch.int)
+        coords_batched = torch.cat([batch_idx, coords], dim=1)  # (N, 4)
+
+        all_coords.append(coords_batched)
+        all_feats.append(feat)
+
+    coords = torch.cat(all_coords, dim=0)  # (B*N, 4)
+    feats = torch.cat(all_feats, dim=0)    # (B*N, C)
+    return coords, feats
 
 class LanguageConditionedCrossAttention(nn.Module):
     def __init__(self, obj_dim, lang_dim, hidden_dim, num_heads=4):
@@ -138,28 +180,39 @@ class AttentionModule(nn.Module):
         super().__init__()
 
         self.fc = nn.Sequential(
-                    nn.Linear(512, 1)
+                    nn.Linear(256, 1)
                     )
         self.target_projector = nn.Sequential(
-                    nn.Linear(562, 512)
+                    nn.Linear(562, 256)
                     )
         
         self.relation_projector = nn.Sequential(
-                    nn.Linear(562, 512)
+                    nn.Linear(562, 256)
                     )
-        self.attn_layer = LanguageConditionedCrossAttention(obj_dim=512, lang_dim=1024, hidden_dim=512)
-        self.cross_attn = TargetToRelationalCrossAttention(512, 512, 1024, hidden_dim=512)
+        self.audio_projector = nn.Sequential(
+                    nn.Linear(1024, 256)
+                    )
+        self.Minkowski_model = MinkowskiPointNet(in_channels=3, out_channels=256)
+        self.attn_layer = LanguageConditionedCrossAttention(obj_dim=256, lang_dim=256, hidden_dim=256)
+        self.cross_attn = TargetToRelationalCrossAttention(256, 256, 256, hidden_dim=256)
     def forward(self, data_dict):
+
+        pointcloud = data_dict["point_clouds"][:, :, :6]
+        coords, feats = prepare_sparse_tensor(pointcloud)
+        coords = coords.to('cuda')
+        feats = feats.to('cuda')
+        scene_embedding = self.Minkowski_model(coords, feats) # B x 512
         
         target_representation = data_dict["target_representation"] # B x 16 x 1074
         relation_representation = data_dict["relation_representation"] # B x 16 x 1074
-        bts_audio_feature = data_dict["bts_audio_feature"].squeeze(1) # B x 758
+        bts_audio_feature = data_dict["bts_audio_feature"].squeeze(1) # B x 1024
+        bts_audio_feature = self.audio_projector(bts_audio_feature)
 
         target_representation = self.target_projector(target_representation)
         relation_representation = self.target_projector(relation_representation)
         # bts_candidate_mask = data_dict["bts_candidate_mask"] # B x 16 
 
-        attns = self.attn_layer(target_representation, bts_audio_feature)
+        attns = self.attn_layer(target_representation, bts_audio_feature + scene_embedding)
         cross_attns = self.cross_attn(target_representation, relation_representation, bts_audio_feature)
 
         scores = self.fc(target_representation + attns + cross_attns)
